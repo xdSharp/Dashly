@@ -1,0 +1,22 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Фон -->
+  <rect width="512" height="512" rx="100" fill="url(#paint0_linear)" />
+  
+  <!-- Буква D -->
+  <path d="M140 130C140 123.373 145.373 118 152 118H256C318.856 118 370 169.144 370 232C370 294.856 318.856 346 256 346H152C145.373 346 140 340.627 140 334V130Z" fill="white" fill-opacity="0.9"/>
+  
+  <!-- Вырез в букве D -->
+  <path d="M180 170C180 166.686 182.686 164 186 164H256C296.869 164 330 197.131 330 238C330 278.869 296.869 312 256 312H186C182.686 312 180 309.314 180 306V170Z" fill="url(#paint0_linear)"/>
+  
+  <!-- Линии графика -->
+  <path d="M140 394H370" stroke="white" stroke-width="20" stroke-linecap="round"/>
+  <path d="M160 394L200 354L240 374L280 334L320 354L360 314" stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Градиент -->
+  <defs>
+    <linearGradient id="paint0_linear" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#0EA5E9"/>
+    </linearGradient>
+  </defs>
+</svg> 

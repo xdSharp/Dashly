@@ -33,12 +33,17 @@ export async function processCSVData(data: CSVData, userId: number) {
 }
 
 async function processRow(row: CSVRow, userId: number) {
+  // Попытка получить текущий бизнес пользователя
+  const defaultBusiness = await storage.getDefaultBusiness(userId);
+  const businessId = defaultBusiness?.id || null;
+
   // Find or create category
   let category = await storage.getCategoryByName(row.category_name, userId);
   if (!category) {
     category = await storage.createCategory({
       name: row.category_name,
-      userId
+      userId,
+      businessId
     });
   }
 
@@ -48,7 +53,10 @@ async function processRow(row: CSVRow, userId: number) {
     product = await storage.createProduct({
       name: row.product_name,
       categoryId: category.id,
-      userId
+      price: row.price.toString(),
+      description: "",
+      userId,
+      businessId
     });
   }
 
@@ -57,12 +65,17 @@ async function processRow(row: CSVRow, userId: number) {
   
   const sale = await storage.createSale({
     productId: product.id,
-    price: row.price,
+    price: row.price.toString(),
     quantity: row.quantity,
-    amount: row.amount,
-    date: parsedDate,
+    totalAmount: row.total_amount.toString(),
+    saleDate: parsedDate,
     employee: row.employee || "",
-    userId
+    customerName: row.customer_name || "",
+    customerEmail: row.customer_email || "",
+    paymentMethod: row.payment_method || "",
+    status: row.status || "completed",
+    userId,
+    businessId
   });
 
   return { category, product, sale };
@@ -79,7 +92,7 @@ export function parseCSV(csvContent: string): CSVData {
 
   // Get header row and check for required columns
   const headerRow = lines[0].split(',');
-  const requiredColumns = ["product_name", "category_name", "price", "quantity", "amount", "date"];
+  const requiredColumns = ["product_name", "category_name", "price", "quantity", "total_amount", "date"];
   
   // Validate headers
   for (const column of requiredColumns) {
@@ -108,7 +121,7 @@ export function parseCSV(csvContent: string): CSVData {
       let value = values[j].trim();
       
       // Convert numeric values
-      if (["price", "quantity", "amount"].includes(key)) {
+      if (["price", "quantity", "total_amount"].includes(key)) {
         const numValue = parseFloat(value);
         if (isNaN(numValue)) {
           throw new Error(`Invalid number for ${key} in line ${i + 1}: ${value}`);

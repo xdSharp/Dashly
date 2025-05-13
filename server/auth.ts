@@ -2,10 +2,10 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
-import bcrypt from "bcrypt";
 import { storage } from "./storage";
 import { User, insertUserSchema, loginSchema } from "@shared/schema";
 import { z } from "zod";
+import { hashPassword, verifyPassword } from "./password-utils";
 
 declare global {
   namespace Express {
@@ -22,16 +22,6 @@ declare global {
   }
 }
 
-// Password hashing with bcrypt
-async function hashPassword(password: string): Promise<string> {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(password, salt);
-}
-
-async function validatePassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
-  return bcrypt.compare(plainPassword, hashedPassword);
-}
-
 export function setupAuth(app: Express) {
   // Session settings
   const sessionSettings: session.SessionOptions = {
@@ -40,12 +30,20 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
-      secure: false, // Отключаем для разработки
+      secure: process.env.NODE_ENV === 'production', // true в production, false в dev
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       httpOnly: true,
-      sameSite: 'lax'
+      sameSite: 'lax', // 'lax' для лучшей совместимости с браузерами
     }
   };
+
+  // Настройки для разработки с разными портами
+  if (process.env.NODE_ENV !== 'production') {
+    // В режиме разработки указываем домен для cookie
+    if (sessionSettings.cookie) {
+      sessionSettings.cookie.domain = 'localhost';
+    }
+  }
 
   app.set("trust proxy", 1);
   app.use(session(sessionSettings));
@@ -61,7 +59,7 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Invalid username or password" });
         }
 
-        const isValid = await validatePassword(password, user.password);
+        const isValid = await verifyPassword(password, user.password);
         if (!isValid) {
           return done(null, false, { message: "Invalid username or password" });
         }
@@ -107,7 +105,7 @@ export function setupAuth(app: Express) {
 
       // ПРИНУДИТЕЛЬНО устанавливаем роль "user" при регистрации
       // Это переопределит что угодно из клиента
-      const role = "admin";
+      const role = "user";
       
       console.log("Регистрация - принудительно установленная роль:", role);
 
@@ -179,6 +177,50 @@ export function setupAuth(app: Express) {
     // Remove password from response
     const { password, ...userWithoutPassword } = req.user;
     res.json(userWithoutPassword);
+  });
+
+  // Endpoint for changing password
+  app.post("/api/change-password", isAuthenticated, async (req, res) => {
+    try {
+      // isAuthenticated middleware гарантирует, что req.user существует
+      if (!req.user) {
+        return res.status(401).json({ message: "Не авторизован" });
+      }
+
+      const userId = req.user.id;
+      const { currentPassword, newPassword } = req.body;
+      
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Оба пароля обязательны" });
+      }
+      
+      // Get the user to check current password
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+      
+      // Verify current password
+      const isValid = await verifyPassword(currentPassword, user.password);
+      if (!isValid) {
+        return res.status(400).json({ message: "Текущий пароль неверен" });
+      }
+      
+      // Hash new password
+      const hashedPassword = await hashPassword(newPassword);
+      
+      // Update user password
+      const updatedUser = await storage.updateUser(userId, { password: hashedPassword });
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+      
+      const { password, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Ошибка при изменении пароля:", error);
+      res.status(500).json({ message: "Не удалось изменить пароль" });
+    }
   });
 
   // Middleware for checking if user is admin

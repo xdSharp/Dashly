@@ -4,6 +4,8 @@ import { Layout } from "@/components/layout";
 import { useLocale } from "@/hooks/use-locale.tsx";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { useBusiness } from "@/hooks/use-business";
 import { Button } from "@/components/ui/button";
 import { 
   Dialog, 
@@ -22,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Trash2 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -36,62 +38,162 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { SalesTable } from "@/components/sales-table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from "@/components/ui/alert-dialog";
 
 // Form schema for sale
 const saleSchema = z.object({
-  productId: z.string().min(1, "Product is required"),
-  price: z.string().min(1, "Price is required"),
-  quantity: z.string().min(1, "Quantity is required"),
-  amount: z.string().min(1, "Amount is required"),
+  productId: z.string().min(1, "Требуется выбрать продукт"),
+  quantity: z.string().min(1, "Требуется указать количество"),
+  price: z.string().optional(),
+  totalAmount: z.string().optional(),
   employee: z.string().optional(),
-  date: z.string().min(1, "Date is required"),
+  customerName: z.string().optional(),
+  customerEmail: z.string().optional().refine(
+    (email) => !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 
+    { message: "Некорректный формат электронной почты" }
+  ),
+  paymentMethod: z.string().optional(),
+  notes: z.string().optional(),
+  saleDate: z.string().optional().default(() => new Date().toISOString().split('T')[0])
 });
 
 export default function SalesPage() {
   const { t } = useLocale();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { currentBusiness } = useBusiness();
 
   // State
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentSale, setCurrentSale] = useState<Sale | null>(null);
+  const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
 
   // Setup form
   const form = useForm<z.infer<typeof saleSchema>>({
     resolver: zodResolver(saleSchema),
     defaultValues: {
       productId: "",
-      price: "",
       quantity: "",
-      amount: "",
       employee: "",
-      date: new Date().toISOString().split("T")[0],
+      customerName: "",
+      customerEmail: "",
+      paymentMethod: "",
+      notes: "",
+      saleDate: new Date().toISOString().split('T')[0],
     },
   });
 
   // Fetch data
   const { data: salesData = [], isLoading: isLoadingSales } = useQuery<Sale[]>({
-    queryKey: ["/api/sales"],
+    queryKey: ["/api/sales", currentBusiness?.id],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", "/api/sales", undefined, {
+          businessId: currentBusiness?.id
+        });
+        if (response instanceof Response) {
+          const data = await response.json();
+          return data || [];
+        }
+        return response || [];
+      } catch (error) {
+        console.error("Error fetching sales:", error);
+        return [];
+      }
+    },
+    enabled: !!currentBusiness,
+    staleTime: 30000,
+    retry: 3
   });
 
   const { data: categoriesData = [], isLoading: isLoadingCategories } = useQuery<Category[]>({
-    queryKey: ["/api/categories"],
+    queryKey: ["/api/categories", currentBusiness?.id],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/categories", undefined, {
+        businessId: currentBusiness?.id
+      });
+      if (response instanceof Response) {
+        return response.json();
+      }
+      return response;
+    },
+    enabled: !!currentBusiness
   });
 
   const { data: productsData = [], isLoading: isLoadingProducts } = useQuery<Product[]>({
-    queryKey: ["/api/products"],
+    queryKey: ["/api/products", currentBusiness?.id],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", "/api/products", undefined, {
+          businessId: currentBusiness?.id
+        });
+        
+        if (response instanceof Response) {
+          const data = await response.json();
+          return Array.isArray(data) ? data : [];
+        }
+        return Array.isArray(response) ? response : [];
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        return [];
+      }
+    },
+    enabled: !!currentBusiness,
+    staleTime: 30000,
+    retry: 3
   });
+
+  // Эффект для отслеживания загрузки продуктов
+  useEffect(() => {
+    console.log('Products data changed:', {
+      isLoading: isLoadingProducts,
+      productsCount: productsData?.length || 0,
+      hasProducts: !!productsData && productsData.length > 0
+    });
+  }, [productsData, isLoadingProducts]);
+
+  // Проверяем состояние загрузки
+  const isLoading = isLoadingSales || isLoadingProducts;
+
+  // Если продукты не загружены, но загрузка завершена, делаем повторный запрос
+  useEffect(() => {
+    if (!isLoadingProducts && (!productsData || productsData.length === 0)) {
+      console.log('No products loaded, triggering refetch...');
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+    }
+  }, [isLoadingProducts, productsData, queryClient]);
 
   // Create sale mutation
   const createSaleMutation = useMutation({
     mutationFn: async (data: any) => {
-      // Получаем пользователя отдельно
       const userResponse = await apiRequest("GET", "/api/user");
-      const userData = await userResponse.json();
+      const userData = await (userResponse as Response).json();
 
       return apiRequest("POST", "/api/sales", {
         ...data,
-        userId: userData.id
+        userId: userData.id,
+        businessId: currentBusiness?.id
       });
     },
     onSuccess: () => {
@@ -103,10 +205,10 @@ export default function SalesPage() {
       setDialogOpen(false);
       form.reset();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: t("sales.createError"),
-        description: error.message,
+        description: error.response?.data?.message || error.message || t("common.error"),
         variant: "destructive",
       });
     },
@@ -115,7 +217,18 @@ export default function SalesPage() {
   // Update sale mutation
   const updateSaleMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      return apiRequest("PUT", `/api/sales/${id}`, data);
+      // Находим продукт в локальном кэше, если API не работает
+      const selectedProduct = productsData.find(p => p.id === data.productId);
+      
+      if (!selectedProduct) {
+        throw new Error(t("sales.productNotFound"));
+      }
+
+      return apiRequest("PUT", `/api/sales/${id}`, {
+        ...data,
+        price: selectedProduct.price,
+        totalAmount: (selectedProduct.price * data.quantity).toString()
+      });
     },
     onSuccess: () => {
       toast({
@@ -128,32 +241,37 @@ export default function SalesPage() {
       setCurrentSale(null);
       form.reset();
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error("Sale update error:", error);
       toast({
         title: t("sales.updateError"),
-        description: error.message,
+        description: error.response?.data?.message || error.message || t("common.error"),
         variant: "destructive",
       });
     },
   });
 
-  // Handle form submission
-  const onSubmit = (values: z.infer<typeof saleSchema>) => {
-    const data = {
-      productId: parseInt(values.productId),
-      price: parseFloat(values.price),
-      quantity: parseInt(values.quantity),
-      amount: parseFloat(values.amount),
-      employee: values.employee || "",
-      date: new Date(values.date).toISOString(),
-    };
-
-    if (isEditing && currentSale) {
-      updateSaleMutation.mutate({ id: currentSale.id, data });
-    } else {
-      createSaleMutation.mutate(data);
-    }
-  };
+  // Delete sale mutation
+  const deleteSaleMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/sales/${id}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: t("sales.deleteSuccess"),
+        description: t("sales.deleteSuccessDesc"),
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+      setDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: t("sales.deleteError"),
+        description: error.response?.data?.message || error.message || t("common.error"),
+        variant: "destructive",
+      });
+    },
+  });
 
   // Handle edit
   const handleEdit = (sale: Sale) => {
@@ -162,13 +280,52 @@ export default function SalesPage() {
 
     // Set form values
     form.setValue("productId", sale.productId.toString());
-    form.setValue("price", sale.price.toString());
     form.setValue("quantity", sale.quantity.toString());
-    form.setValue("amount", sale.amount.toString());
     form.setValue("employee", sale.employee || "");
-    form.setValue("date", new Date(sale.date).toISOString().split("T")[0]);
+    form.setValue("saleDate", sale.saleDate ? new Date(sale.saleDate).toISOString().split('T')[0] : "");
+    form.setValue("customerName", sale.customerName || "");
+    form.setValue("customerEmail", sale.customerEmail || "");
+    form.setValue("paymentMethod", sale.paymentMethod || "");
+    form.setValue("notes", sale.notes || "");
 
     setDialogOpen(true);
+  };
+
+  // Handle form submission
+  const onSubmit = (values: z.infer<typeof saleSchema>) => {
+    const selectedProduct = productsData.find(p => p.id === parseInt(values.productId));
+    
+    if (!selectedProduct) {
+      toast({
+        title: t("sales.productNotFound"),
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const data = {
+      productId: parseInt(values.productId),
+      quantity: parseInt(values.quantity),
+      price: selectedProduct.price,
+      totalAmount: (selectedProduct.price * parseInt(values.quantity)).toString(),
+      employee: values.employee || "",
+      saleDate: values.saleDate ? new Date(values.saleDate) : new Date(),
+      customerName: values.customerName || "",
+      customerEmail: values.customerEmail || "",
+      paymentMethod: values.paymentMethod || "",
+      notes: values.notes || ""
+    };
+
+    if (isEditing && currentSale) {
+      // Если редактируем существующую продажу
+      updateSaleMutation.mutate({ 
+        id: currentSale.id, 
+        data 
+      });
+    } else {
+      // Если создаем новую продажу
+      createSaleMutation.mutate(data);
+    }
   };
 
   // Handle dialog close
@@ -179,18 +336,19 @@ export default function SalesPage() {
     form.reset();
   };
 
-  // Update amount when price or quantity changes
+  // Update price and total amount when product or quantity changes
   useEffect(() => {
-    const price = parseFloat(form.watch("price") || "0");
+    const selectedProduct = productsData?.find(p => p.id === parseInt(form.watch("productId") || "0"));
     const quantity = parseInt(form.watch("quantity") || "0");
-
-    if (!isNaN(price) && !isNaN(quantity)) {
-      form.setValue("amount", (price * quantity).toString());
+    
+    if (selectedProduct && !isNaN(quantity)) {
+      const price = selectedProduct.price;
+      const total = price * quantity;
+      
+      form.setValue("price", formatCurrency(price));
+      form.setValue("totalAmount", formatCurrency(total));
     }
-  }, [form.watch("price"), form.watch("quantity")]);
-
-  // Loading state
-  const isLoading = isLoadingSales || isLoadingCategories || isLoadingProducts;
+  }, [form.watch("productId"), form.watch("quantity"), productsData]);
 
   // Helper function to get product name by id
   const getProductName = (productId: number) => {
@@ -198,195 +356,272 @@ export default function SalesPage() {
     return product ? product.name : "Unknown";
   };
 
-  return (
-    <Layout title={t("pages.sales")}>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">{t("sales.title")}</h1>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          {t("sales.addNew")}
-        </Button>
-      </div>
+  // Обработчик удаления продажи
+  const handleDeleteSale = () => {
+    if (saleToDelete) {
+      deleteSaleMutation.mutate(saleToDelete.id);
+      setSaleToDelete(null);
+    }
+  };
 
-      {/* Sales Table */}
-      {isLoading ? (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : salesData.length === 0 ? (
-        <div className="text-center py-10 border rounded-md">
-          <p className="text-lg text-muted-foreground">{t("sales.noResults")}</p>
+  // Обработчик открытия диалога подтверждения удаления
+  const handleOpenDeleteDialog = (sale: Sale) => {
+    setSaleToDelete(sale);
+  };
+
+  return (
+    <Layout>
+      <div className="p-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t("sales.title")}</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
+              {currentBusiness
+                ? t("sales.subtitle", { name: currentBusiness.name })
+                : t("sales.subtitleDefault")}
+            </p>
+          </div>
           <Button 
-            variant="outline" 
-            className="mt-4"
             onClick={() => setDialogOpen(true)}
+            className="bg-blue-600 hover:bg-blue-500 text-white shadow-lg hover:shadow-blue-500/20 transition-all duration-200"
           >
+            <Plus className="mr-2 h-4 w-4" />
             {t("sales.addNew")}
           </Button>
         </div>
-      ) : (
-        <div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("sales.date")}</TableHead>
-                <TableHead>{t("sales.product")}</TableHead>
-                <TableHead className="text-right">{t("sales.quantity")}</TableHead>
-                <TableHead className="text-right">{t("sales.price")}</TableHead>
-                <TableHead className="text-right">{t("sales.total")}</TableHead>
-                <TableHead>{t("sales.employee")}</TableHead>
-                <TableHead className="text-right">{t("common.actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {salesData.map((sale) => (
-                <TableRow key={sale.id}>
-                  <TableCell>{new Date(sale.date).toLocaleDateString()}</TableCell>
-                  <TableCell>{getProductName(sale.productId)}</TableCell>
-                  <TableCell className="text-right">{sale.quantity}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(sale.price)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(sale.price * sale.quantity)}</TableCell>
-                  <TableCell>{sale.employee || "-"}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(sale)}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                      </svg>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
 
-      {/* Add/Edit Sale Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {isEditing ? t("sales.editTitle") : t("sales.createTitle")}
-            </DialogTitle>
-            <DialogDescription>
-              {isEditing ? t("sales.editDesc") : t("sales.createDesc")}
-            </DialogDescription>
-          </DialogHeader>
+        <Card className="border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
+          <CardHeader className="border-b border-gray-200 dark:border-gray-800">
+            <CardTitle className="text-xl font-semibold text-gray-900 dark:text-white">
+              {t("sales.list")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <SalesTable 
+              sales={salesData} 
+              products={productsData}
+              onEdit={handleEdit}
+              onDelete={handleOpenDeleteDialog}
+              isLoading={isLoading}
+            />
+          </CardContent>
+        </Card>
 
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="productId">{t("products.name")}</Label>
-                <Select
-                  onValueChange={(value) => {
-                    form.setValue("productId", value);
-                    const product = productsData.find((p) => p.id === parseInt(value));
-                    if (product) {
-                      form.setValue("price", product.price.toString());
-                    }
-                  }}
-                  defaultValue={form.getValues("productId")}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("sales.selectProduct")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productsData.map((product) => (
-                      <SelectItem key={product.id} value={product.id.toString()}>
-                        {product.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.productId && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.productId.message}
-                  </p>
-                )}
-              </div>
+        {/* Add/Edit Sale Dialog */}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {isEditing ? t("sales.editTitle") : t("sales.createTitle")}
+              </DialogTitle>
+              <DialogDescription>
+                {isEditing ? t("sales.editDesc") : t("sales.createDesc")}
+              </DialogDescription>
+            </DialogHeader>
 
-              <div className="grid gap-2">
-                <Label htmlFor="price">{t("sales.price")}</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  step="0.01"
-                  {...form.register("price")}
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="productId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("sales.product")}</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t("sales.selectProduct")} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {productsData?.map((product) => (
+                            <SelectItem key={product.id} value={product.id.toString()}>
+                              {product.name} - {formatCurrency(product.price)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                {form.formState.errors.price && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.price.message}
-                  </p>
-                )}
-              </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="quantity">{t("sales.quantity")}</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  {...form.register("quantity")}
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("sales.quantity")}</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="1" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                {form.formState.errors.quantity && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.quantity.message}
-                  </p>
-                )}
-              </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="amount">{t("sales.amount")}</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  readOnly
-                  {...form.register("amount")}
+                <FormField
+                  control={form.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("sales.price")}</FormLabel>
+                      <FormControl>
+                        <Input type="text" {...field} disabled />
+                      </FormControl>
+                    </FormItem>
+                  )}
                 />
-              </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="employee">{t("sales.employee")}</Label>
-                <Input
-                  id="employee"
-                  {...form.register("employee")}
+                <FormField
+                  control={form.control}
+                  name="totalAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("sales.total")}</FormLabel>
+                      <FormControl>
+                        <Input type="text" {...field} disabled />
+                      </FormControl>
+                    </FormItem>
+                  )}
                 />
-              </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="date">{t("sales.date")}</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  {...form.register("date")}
+                <FormField
+                  control={form.control}
+                  name="employee"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("sales.employee")}</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                {form.formState.errors.date && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.date.message}
-                  </p>
-                )}
-              </div>
-            </div>
 
-            <DialogFooter>
-              <Button variant="outline" type="button" onClick={handleDialogClose}>
-                {t("common.cancel")}
-              </Button>
-              <Button type="submit" disabled={createSaleMutation.isPending || updateSaleMutation.isPending}>
-                {(createSaleMutation.isPending || updateSaleMutation.isPending) && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {isEditing ? t("common.save") : t("sales.addNew")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+                <FormField
+                  control={form.control}
+                  name="saleDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("sales.date")}</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="date" 
+                          {...field} 
+                          placeholder={t("sales.selectDate")}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="customerName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("sales.customerName")}</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="customerEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("sales.customerEmail")}</FormLabel>
+                      <FormControl>
+                        <Input type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="paymentMethod"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("sales.paymentMethod")}</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t("sales.selectPaymentMethod")} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="cash">{t("sales.paymentMethodCash")}</SelectItem>
+                          <SelectItem value="card">{t("sales.paymentMethodCard")}</SelectItem>
+                          <SelectItem value="transfer">{t("sales.paymentMethodTransfer")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("sales.notes")}</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button type="submit" disabled={createSaleMutation.isPending || updateSaleMutation.isPending}>
+                  {isEditing 
+                    ? (updateSaleMutation.isPending 
+                      ? t("common.loading") 
+                      : t("common.edit")) 
+                    : (createSaleMutation.isPending 
+                      ? t("common.loading") 
+                      : t("sales.addNew"))
+                  }
+                </Button>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Диалог подтверждения удаления */}
+        <AlertDialog 
+          open={!!saleToDelete} 
+          onOpenChange={() => setSaleToDelete(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("sales.deleteConfirmTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("sales.deleteConfirmDesc")}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleDeleteSale}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {t("common.delete")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </Layout>
   );
 }

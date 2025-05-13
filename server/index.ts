@@ -6,12 +6,22 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Add CORS headers
+// Обновленные CORS-заголовки для работы с клиентом
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  res.header('Access-Control-Allow-Credentials', 'true');
+  const origin = req.headers.origin;
+  // Разрешаем запросы с localhost на любом порту
+  if (origin && origin.match(/^http:\/\/localhost:\d+$/)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
+  
+  // Обработка preflight OPTIONS-запросов
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
   next();
 });
 
@@ -46,8 +56,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Регистрируем маршруты API
   const server = await registerRoutes(app);
 
+  // Обработка ошибок после регистрации всех маршрутов
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -56,20 +68,38 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  // Обработка запросов к несуществующим API-эндпоинтам ПОСЛЕ регистрации всех маршрутов
+  app.use('/api/*', (req, res) => {
+    // Для OPTIONS-запросов всегда возвращаем 200 OK
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+    
+    // Для остальных запросов возвращаем 404
+    res.status(404).json({ message: 'API endpoint not found' });
+  });
+
+  // Обработка всех остальных запросов в зависимости от режима
+  const serveClientApp = process.env.SERVE_CLIENT === 'true';
+
+  if (app.get("env") === "development" && serveClientApp) {
+    // Используем Vite в режиме разработки, если нужно обслуживать клиент
     await setupVite(app, server);
-  } else {
+  } else if (serveClientApp) {
+    // Обслуживаем статические файлы в production, если нужно обслуживать клиент
     serveStatic(app);
+  } else {
+    // Если мы не обслуживаем клиент, отвечаем 404 на все не-API запросы
+    app.use('*', (req, res) => {
+      res.status(404).json({ message: 'Only API endpoints are available on this server' });
+    });
   }
 
-  // ALWAYS serve the app on port 5005
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // Порт, на котором запускается сервер
   const port = 5005;
-  server.listen(port, '0.0.0.0', () => { //This line is changed to listen on all interfaces.
-    log(`serving on port ${port}`);
+  server.listen(port, '0.0.0.0', () => {
+    log(`API server running on port ${port}`);
+    log(`Mode: ${app.get("env")}, Serving client: ${serveClientApp ? 'Yes' : 'No'}`);
+    log(`CORS enabled for localhost connections on any port`);
   });
 })();

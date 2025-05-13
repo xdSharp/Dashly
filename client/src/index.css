@@ -23,6 +23,13 @@
 --destructive-foreground: 60 9.1% 97.8%;
 --ring: 20 14.3% 4.1%;
 --radius: 0.5rem;
+/* Переменные для графиков - светлая тема */
+--chart-text: #333333;
+--chart-axis: #666666;
+--tooltip-bg: rgba(255, 255, 255, 0.95);
+--tooltip-color: #333333;
+--tooltip-border: #cccccc;
+--tooltip-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   }
   .dark {
       --background: 240 10% 3.9%;
@@ -45,6 +52,13 @@
 --destructive-foreground: 0 0% 98%;
 --ring: 240 4.9% 83.9%;
 --radius: 0.5rem;
+/* Переменные для графиков - темная тема */
+--chart-text: #ffffff;
+--chart-axis: rgba(255, 255, 255, 0.5);
+--tooltip-bg: rgba(30, 30, 40, 0.95);
+--tooltip-color: #ffffff;
+--tooltip-border: #555555;
+--tooltip-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
   }
 
 @layer base {
@@ -63,4 +77,49 @@
   min-height: 100vh;
   max-width: 100vw;
   overflow-x: hidden;
+}
+
+/* Стили для тултипов графиков */
+.recharts-tooltip-wrapper {
+  outline: none !important;
+  z-index: 100;
+}
+
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: var(--tooltip-bg) !important;
+  border: 1px solid var(--tooltip-border) !important;
+  color: var(--tooltip-color) !important;
+  box-shadow: var(--tooltip-shadow) !important;
+  border-radius: 6px;
+  padding: 10px 12px !important;
+  font-weight: 500;
+}
+
+.recharts-tooltip-label {
+  color: var(--tooltip-color) !important;
+  font-weight: 600 !important;
+  margin-bottom: 6px !important;
+}
+
+.recharts-tooltip-item {
+  color: var(--tooltip-color) !important;
+  padding: 2px 0 !important;
+}
+
+/* Дополнительные стили для лучшей видимости графиков в темном режиме */
+.dark .recharts-cartesian-axis-tick-value {
+  font-weight: 500;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+.dark .recharts-reference-line line {
+  stroke-opacity: 0.1;
+}
+
+.dark .recharts-bar rect {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.dark .recharts-legend-item-text {
+  font-weight: 500 !important;
 }

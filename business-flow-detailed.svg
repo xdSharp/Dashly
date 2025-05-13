@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+  <!-- Фон -->
+  <rect width="800" height="500" fill="#1e1e2e" rx="10" ry="10"/>
+  
+  <!-- Центральный блок -->
+  <rect x="300" y="150" width="250" height="200" fill="#3b82f6" rx="5" ry="5" stroke="#ffffff" stroke-width="2"/>
+  <text x="425" y="180" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#ffffff" text-anchor="middle">Dashly</text>
+  <text x="425" y="210" font-family="Arial, sans-serif" font-size="16" fill="#ffffff" text-anchor="middle">Система бизнес-аналитики</text>
+  <text x="425" y="330" font-family="Arial, sans-serif" font-size="14" fill="#d1d5db" text-anchor="middle">v1.0</text>
+  
+  <!-- Входы слева -->
+  <!-- Данные о продажах -->
+  <line x1="50" y1="180" x2="300" y2="180" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="290,180 280,175 280,185" fill="#ffffff"/>
+  <text x="150" y="170" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Данные о продажах</text>
+  
+  <!-- Управление товарами -->
+  <line x1="50" y1="250" x2="300" y2="250" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="290,250 280,245 280,255" fill="#ffffff"/>
+  <text x="150" y="240" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Управление товарами</text>
+  
+  <!-- Управление категориями -->
+  <line x1="50" y1="320" x2="300" y2="320" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="290,320 280,315 280,325" fill="#ffffff"/>
+  <text x="150" y="310" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Управление категориями</text>
+  
+  <!-- Выходы справа -->
+  <!-- Аналитика -->
+  <line x1="550" y1="180" x2="750" y2="180" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="740,180 730,175 730,185" fill="#ffffff"/>
+  <text x="650" y="170" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Аналитика бизнеса</text>
+  
+  <!-- Графики -->
+  <line x1="550" y1="250" x2="750" y2="250" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="740,250 730,245 730,255" fill="#ffffff"/>
+  <text x="650" y="240" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Графики продаж</text>
+  
+  <!-- Отчеты -->
+  <line x1="550" y1="320" x2="750" y2="320" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="740,320 730,315 730,325" fill="#ffffff"/>
+  <text x="650" y="310" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Экспорт отчетов</text>
+  
+  <!-- Входы сверху -->
+  <!-- Доступные инструменты -->
+  <line x1="350" y1="70" x2="350" y2="150" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="350,140 345,130 355,130" fill="#ffffff"/>
+  <text x="350" y="60" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Управление данными</text>
+  
+  <!-- Настройки -->
+  <line x1="425" y1="70" x2="425" y2="150" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="425,140 420,130 430,130" fill="#ffffff"/>
+  <text x="425" y="60" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Настройки бизнеса</text>
+  
+  <!-- Права пользователей -->
+  <line x1="500" y1="70" x2="500" y2="150" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="500,140 495,130 505,130" fill="#ffffff"/>
+  <text x="500" y="60" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Права пользователей</text>
+  
+  <!-- Входы снизу -->
+  <!-- Авторизация -->
+  <line x1="350" y1="430" x2="350" y2="350" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="350,360 345,370 355,370" fill="#ffffff"/>
+  <text x="350" y="450" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Авторизация</text>
+  
+  <!-- Управление пользователями -->
+  <line x1="425" y1="430" x2="425" y2="350" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="425,360 420,370 430,370" fill="#ffffff"/>
+  <text x="425" y="450" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Управление пользователями</text>
+  
+  <!-- Импорт/Экспорт -->
+  <line x1="500" y1="430" x2="500" y2="350" stroke="#ffffff" stroke-width="2"/>
+  <polygon points="500,360 495,370 505,370" fill="#ffffff"/>
+  <text x="500" y="450" font-family="Arial, sans-serif" font-size="14" fill="#ffffff" text-anchor="middle">Импорт/Экспорт CSV</text>
+</svg> 

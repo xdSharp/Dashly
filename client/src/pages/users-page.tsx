@@ -67,6 +67,7 @@ const userEditSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Valid email is required"),
   role: z.string().min(1, "Role is required"),
+  password: z.string().optional(),
 });
 
 export default function UsersPage() {
@@ -93,13 +94,33 @@ export default function UsersPage() {
   // Fetch users
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["/api/admin/users"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/admin/users");
+      return await response.json();
+    },
     enabled: !!user && user.role === "admin",
   });
   
   // Update user mutation
   const updateUserMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      return apiRequest("PUT", `/api/admin/users/${id}`, data);
+      console.log("Мутация обновления пользователя, id:", id);
+      console.log("Данные для обновления:", data);
+      
+      // Всегда используем основной эндпоинт обновления, если есть пароль или другие поля
+      // Специальный эндпоинт для роли используем только если меняется только роль
+      if (currentUser && currentUser.role !== data.role && 
+          Object.keys(data).length === 1 && data.role) {
+        // Если меняется только роль, используем специальный эндпоинт
+        console.log("Используем специальный эндпоинт для изменения роли");
+        const response = await apiRequest("PUT", `/api/admin/users/${id}/role`, { role: data.role });
+        return await response.json();
+      } else {
+        // Иначе обновляем все данные вместе (включая пароль и роль)
+        console.log("Используем основной эндпоинт для обновления всех данных");
+        const response = await apiRequest("PUT", `/api/admin/users/${id}`, data);
+        return await response.json();
+      }
     },
     onSuccess: () => {
       toast({
@@ -123,7 +144,8 @@ export default function UsersPage() {
   // Delete user mutation
   const deleteUserMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest("DELETE", `/api/admin/users/${id}`);
+      const response = await apiRequest("DELETE", `/api/admin/users/${id}`);
+      return response;
     },
     onSuccess: () => {
       toast({
@@ -163,9 +185,25 @@ export default function UsersPage() {
   // Handle form submission
   const onSubmit = (values: z.infer<typeof userEditSchema>) => {
     if (currentUser) {
+      const dataToSend = { ...values };
+      
+      // Если пароль пустой, удаляем его из данных
+      if (!dataToSend.password || dataToSend.password.trim() === '') {
+        delete dataToSend.password;
+        console.log("Пароль пустой, удаляем поле");
+      } else {
+        // Показываем уведомление об изменении пароля
+        console.log("Отправляем новый пароль для пользователя:", currentUser.id);
+        toast({
+          title: t("users.passwordChangeTitle"),
+          description: t("users.passwordChangeDesc"),
+        });
+      }
+      
+      console.log("Данные для отправки:", dataToSend);
       updateUserMutation.mutate({ 
         id: currentUser.id, 
-        data: values 
+        data: dataToSend 
       });
     }
   };
@@ -199,8 +237,8 @@ export default function UsersPage() {
   return (
     <Layout title={t("pages.users")}>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">{t("users.title")}</h1>
-        <UserCog className="h-8 w-8 text-gray-400" />
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t("users.title")}</h1>
+        <UserCog className="h-8 w-8 text-gray-500 dark:text-gray-400" />
       </div>
       
       {/* Search */}
@@ -211,7 +249,7 @@ export default function UsersPage() {
             placeholder={t("users.searchPlaceholder")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-10 border-gray-200 dark:border-gray-700 bg-white dark:bg-transparent"
           />
         </div>
       </div>
@@ -222,10 +260,10 @@ export default function UsersPage() {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : (
-        <div className="rounded-md border">
+        <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-transparent">
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow className="bg-gray-50 dark:bg-gray-800/30">
                 <TableHead>{t("users.name")}</TableHead>
                 <TableHead>{t("users.username")}</TableHead>
                 <TableHead>{t("users.email")}</TableHead>
@@ -240,7 +278,7 @@ export default function UsersPage() {
                   const isSelf = userData.id === user?.id;
                   
                   return (
-                    <TableRow key={userData.id}>
+                    <TableRow key={userData.id} className={isSelf ? "bg-blue-50/50 dark:bg-blue-900/10" : ""}>
                       <TableCell className="font-medium">{userData.name}</TableCell>
                       <TableCell>{userData.username}</TableCell>
                       <TableCell>{userData.email}</TableCell>
@@ -256,23 +294,24 @@ export default function UsersPage() {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <Button variant="ghost" className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
                               <span className="sr-only">{t("common.openMenu")}</span>
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>{t("common.actions")}</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
+                          <DropdownMenuContent align="end" className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                            <DropdownMenuLabel className="text-gray-700 dark:text-gray-300">{t("common.actions")}</DropdownMenuLabel>
+                            <DropdownMenuSeparator className="bg-gray-200 dark:bg-gray-700" />
                             <DropdownMenuItem
                               onClick={() => handleEdit(userData)}
+                              className="text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50"
                             >
                               <Edit className="mr-2 h-4 w-4" />
                               {t("common.edit")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleDelete(userData)}
-                              className="text-red-600 dark:text-red-400"
+                              className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10"
                               disabled={isSelf} // Disable delete for current user
                             >
                               <Trash className="mr-2 h-4 w-4" />
@@ -286,7 +325,7 @@ export default function UsersPage() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center text-gray-500 dark:text-gray-400">
                     {searchTerm
                       ? t("users.noSearchResults")
                       : t("users.noUsers")}
@@ -299,7 +338,14 @@ export default function UsersPage() {
       )}
       
       {/* Edit User Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          // При закрытии диалога сбрасываем форму и текущего пользователя
+          setCurrentUser(null);
+          form.reset();
+        }
+        setDialogOpen(open);
+      }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{t("users.editTitle")}</DialogTitle>
@@ -342,6 +388,24 @@ export default function UsersPage() {
                       {form.formState.errors.email.message}
                     </p>
                   )}
+                </div>
+              </div>
+              
+              {/* Password (optional) */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="password" className="text-right">
+                  {t("users.newPassword")}
+                </Label>
+                <div className="col-span-3">
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder={t("users.noPasswordChange")}
+                    {...form.register("password")}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t("users.passwordChangeDesc")}
+                  </p>
                 </div>
               </div>
               

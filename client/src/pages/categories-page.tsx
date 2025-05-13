@@ -5,6 +5,7 @@ import { useLocale } from "@/hooks/use-locale.tsx";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useBusiness } from "@/hooks/use-business";
 import { 
   Table, 
   TableBody, 
@@ -57,12 +58,14 @@ import { z } from "zod";
 // Form schema for category
 const categorySchema = z.object({
   name: z.string().min(1, "Name is required"),
+  description: z.string().optional(),
 });
 
 export default function CategoriesPage() {
   const { t } = useLocale();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { currentBusiness } = useBusiness();
   
   // State
   const [searchTerm, setSearchTerm] = useState("");
@@ -76,23 +79,35 @@ export default function CategoriesPage() {
     resolver: zodResolver(categorySchema),
     defaultValues: {
       name: "",
+      description: "",
     },
   });
   
   // Fetch categories
   const { data: categoriesData = [], isLoading } = useQuery({
-    queryKey: ["/api/categories"],
+    queryKey: ["/api/categories", currentBusiness?.id],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/categories", undefined, { 
+        businessId: currentBusiness?.id 
+      });
+      if (response instanceof Response) {
+        const data = await response.json();
+        console.log("Полученные категории:", data);
+        return data;
+      }
+      return response;
+    },
     refetchOnMount: true,
     refetchOnWindowFocus: true,
+    enabled: !!currentBusiness
   });
   
   // Create category mutation
   const createCategoryMutation = useMutation({
     mutationFn: async (data: any) => {
-      const user = await apiRequest("GET", "/api/user");
       return apiRequest("POST", "/api/categories", {
         ...data,
-        userId: user.id
+        businessId: currentBusiness?.id
       });
     },
     onSuccess: () => {
@@ -101,15 +116,17 @@ export default function CategoriesPage() {
         description: t("categories.createSuccessDesc"),
       });
       // Force query invalidation and refetch
-      queryClient.invalidateQueries({ queryKey: ["/api/categories"], exact: true });
-      queryClient.refetchQueries({ queryKey: ["/api/categories"], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
+      queryClient.refetchQueries({ queryKey: ["/api/categories"] });
+      queryClient.refetchQueries({ queryKey: ["/api/products"] });
       setDialogOpen(false);
       form.reset();
     },
     onError: (error) => {
+      console.error("Error creating category:", error);
       toast({
         title: t("categories.createError"),
-        description: error.message,
+        description: error.message || "Произошла ошибка при создании категории",
         variant: "destructive",
       });
     },
@@ -168,6 +185,7 @@ export default function CategoriesPage() {
     if (isEditing && currentCategory) {
       updateCategoryMutation.mutate({ id: currentCategory.id, data: values });
     } else {
+      console.log("Создание категории с данными:", { ...values, businessId: currentBusiness?.id });
       createCategoryMutation.mutate(values);
     }
   };
@@ -177,6 +195,7 @@ export default function CategoriesPage() {
     setCurrentCategory(category);
     setIsEditing(true);
     form.setValue("name", category.name);
+    form.setValue("description", category.description || "");
     setDialogOpen(true);
   };
   
@@ -208,174 +227,169 @@ export default function CategoriesPage() {
   
   return (
     <Layout title={t("pages.categories")}>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">{t("categories.title")}</h1>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          {t("categories.addNew")}
-        </Button>
-      </div>
-      
-      {/* Search */}
-      <div className="flex mb-6">
-        <div className="relative w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-          <Input
-            placeholder={t("categories.searchPlaceholder")}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+      <div className="container mx-auto py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-semibold">{t("categories.title")}</h1>
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            {t("categories.addNew")}
+          </Button>
         </div>
-      </div>
-      
-      {/* Categories Table */}
-      {isLoading ? (
-        <div className="flex items-center justify-center p-8">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        
+        {/* Search */}
+        <div className="mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400" />
+            <Input
+              placeholder={t("categories.searchPlaceholder")}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
         </div>
-      ) : (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("categories.name")}</TableHead>
-                <TableHead className="w-24">{t("common.actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCategories.length > 0 ? (
-                filteredCategories.map((category: any) => {
-                  // Check if user is admin or owner
-                  const canModify = user?.role === "admin" || category.userId === user?.id;
-                  
-                  return (
-                    <TableRow key={category.id}>
-                      <TableCell className="font-medium">{category.name}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">{t("common.openMenu")}</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>{t("common.actions")}</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => handleEdit(category)}
-                              disabled={!canModify}
-                            >
-                              <Edit className="mr-2 h-4 w-4" />
-                              {t("common.edit")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleDelete(category)}
-                              className="text-red-600 dark:text-red-400"
-                              disabled={!canModify}
-                            >
-                              <Trash className="mr-2 h-4 w-4" />
-                              {t("common.delete")}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              ) : (
+        
+        {/* Categories Table */}
+        {isLoading ? (
+          <div className="flex justify-center items-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin" />
+          </div>
+        ) : categoriesData.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 dark:text-gray-400">{t("categories.noCategories")}</p>
+          </div>
+        ) : (
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={2} className="h-24 text-center">
-                    {searchTerm
-                      ? t("categories.noSearchResults")
-                      : t("categories.noCategories")}
-                  </TableCell>
+                  <TableHead>{t("categories.name")}</TableHead>
+                  <TableHead>{t("categories.description")}</TableHead>
+                  <TableHead className="w-[100px]">{t("common.actions")}</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-      
-      {/* Create/Edit Category Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditing ? t("categories.editTitle") : t("categories.createTitle")}
-            </DialogTitle>
-            <DialogDescription>
-              {isEditing ? t("categories.editDesc") : t("categories.createDesc")}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  {t("categories.name")}*
-                </Label>
-                <div className="col-span-3">
+              </TableHeader>
+              <TableBody>
+                {filteredCategories.map((category) => (
+                  <TableRow key={category.id}>
+                    <TableCell>{category.name}</TableCell>
+                    <TableCell>{category.description || "-"}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-800">
+                            <span className="sr-only">{t("common.openMenu")}</span>
+                            <MoreHorizontal className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-[160px]">
+                          <DropdownMenuLabel className="text-gray-700 dark:text-gray-300">{t("common.actions")}</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => handleEdit(category)}
+                            className="text-gray-700 dark:text-gray-300 focus:text-gray-900 dark:focus:text-white"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            {t("common.edit")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300"
+                            onClick={() => {
+                              setCurrentCategory(category);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash className="w-4 h-4 mr-2" />
+                            {t("common.delete")}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        
+        {/* Create/Edit Category Dialog */}
+        <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {isEditing ? t("categories.editTitle") : t("categories.createTitle")}
+              </DialogTitle>
+              <DialogDescription>
+                {isEditing ? t("categories.editDesc") : t("categories.createDesc")}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <form onSubmit={form.handleSubmit(onSubmit)}>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">{t("categories.name")}</Label>
                   <Input
                     id="name"
                     {...form.register("name")}
                   />
                   {form.formState.errors.name && (
-                    <p className="text-sm text-red-500 mt-1">
+                    <p className="text-sm text-red-500">
                       {form.formState.errors.name.message}
                     </p>
                   )}
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">{t("categories.description")}</Label>
+                  <textarea
+                    id="description"
+                    className="w-full min-h-[100px] px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    placeholder={t("categories.descriptionPlaceholder")}
+                    {...form.register("description")}
+                  />
+                </div>
               </div>
-            </div>
-            
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleDialogClose}
+              
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setDialogOpen(false);
+                    setIsEditing(false);
+                    setCurrentCategory(null);
+                    form.reset();
+                  }}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button type="submit">
+                  {isEditing ? t("common.save") : t("common.create")}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+        
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("categories.deleteConfirmTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("categories.deleteConfirmDesc")}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-red-500 hover:bg-red-600"
+                onClick={() => currentCategory && deleteCategoryMutation.mutate(currentCategory.id)}
               >
-                {t("common.cancel")}
-              </Button>
-              <Button
-                type="submit"
-                disabled={createCategoryMutation.isPending || updateCategoryMutation.isPending}
-              >
-                {(createCategoryMutation.isPending || updateCategoryMutation.isPending) && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {isEditing ? t("common.save") : t("common.create")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("categories.deleteConfirmTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("categories.deleteConfirmDesc")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-              disabled={deleteCategoryMutation.isPending}
-            >
-              {deleteCategoryMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              {t("common.delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                {t("common.delete")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </Layout>
   );
 }

@@ -31,26 +31,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
   } = useQuery<User | null, Error>({
     queryKey: ["/api/user"],
-    queryFn: async ({ queryKey }) => {
+    queryFn: async () => {
       try {
-        const res = await fetch(queryKey[0] as string, {
-          credentials: "include",
-        });
-        
-        if (res.status === 401) {
+        const response = await apiRequest("GET", "/api/user");
+        return await response.json();
+      } catch (error) {
+        // Если пользователь не авторизован, возвращаем null вместо ошибки
+        if (error instanceof Error && error.message.includes("401")) {
           return null;
         }
-        
-        if (!res.ok) {
-          throw new Error(`${res.status}: ${res.statusText}`);
-        }
-        
-        const userData = await res.json();
-        console.log("Fetched user data:", userData);
-        return userData;
-      } catch (error) {
-        console.error("Error fetching user:", error);
-        return null;
+        throw error;
       }
     },
     staleTime: 0, // Всегда получать свежие данные
@@ -60,27 +50,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Login mutation
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      const response = await apiRequest("POST", "/api/login", credentials);
+      return await response.json();
     },
     onSuccess: (user: User) => {
       console.log("Login successful, user data:", user);
       queryClient.setQueryData(["/api/user"], user);
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       toast({
-        title: "Login successful",
-        description: `Welcome back, ${user.name}!`,
+        title: "Вход выполнен",
+        description: `Добро пожаловать, ${user.name}!`,
         variant: "default",
       });
-      // Используем window.location вместо хука для надежного перенаправления
+      
+      // Сохраняем данные пользователя в локальном хранилище как запасной вариант
+      localStorage.setItem("userAuth", JSON.stringify({
+        isLoggedIn: true,
+        user: user
+      }));
+      
+      // Редирект в зависимости от роли пользователя
       setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 100);
+        // Если пользователь - администратор, перенаправляем на страницу пользователей (админ-панель)
+        // В противном случае - на обычную панель мониторинга
+        const redirectPath = user.role === "admin" ? "/users" : "/dashboard";
+        window.location.href = redirectPath;
+      }, 500);
     },
     onError: (error: Error) => {
       toast({
-        title: "Login failed",
-        description: error.message || "Invalid username or password",
+        title: "Ошибка входа",
+        description: error.message || "Неверное имя пользователя или пароль",
         variant: "destructive",
       });
     },
@@ -89,27 +89,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Register mutation
   const registerMutation = useMutation({
     mutationFn: async (userData: InsertUser) => {
-      const res = await apiRequest("POST", "/api/register", userData);
-      return await res.json();
+      const response = await apiRequest("POST", "/api/register", userData);
+      return await response.json();
     },
     onSuccess: (user: User) => {
       console.log("Registration successful, user data:", user);
       queryClient.setQueryData(["/api/user"], user);
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      
+      // Сохраняем данные пользователя в локальном хранилище как запасной вариант
+      localStorage.setItem("userAuth", JSON.stringify({
+        isLoggedIn: true,
+        user: user
+      }));
+      
       toast({
-        title: "Registration successful",
-        description: `Welcome, ${user.name}!`,
+        title: "Регистрация успешна",
+        description: `Добро пожаловать, ${user.name}!`,
         variant: "default",
       });
-      // Используем window.location вместо хука для надежного перенаправления
+      
+      // При регистрации всегда перенаправляем в панель мониторинга пользователя,
+      // т.к. регистрация с ролью "admin" запрещена
       setTimeout(() => {
         window.location.href = "/dashboard";
-      }, 100);
+      }, 500);
     },
     onError: (error: Error) => {
       toast({
-        title: "Registration failed",
-        description: error.message || "Could not create account",
+        title: "Ошибка регистрации",
+        description: error.message || "Не удалось создать аккаунт",
         variant: "destructive",
       });
     },
@@ -119,19 +128,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logoutMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/logout");
+      // Очищаем локальное хранилище при выходе
+      localStorage.removeItem("userAuth");
     },
     onSuccess: () => {
       queryClient.setQueryData(["/api/user"], null);
       toast({
-        title: "Logged out",
-        description: "You have been successfully logged out",
+        title: "Выход выполнен",
+        description: "Вы успешно вышли из системы",
         variant: "default",
       });
       setLocation("/");
     },
     onError: (error: Error) => {
       toast({
-        title: "Logout failed",
+        title: "Ошибка при выходе",
         description: error.message,
         variant: "destructive",
       });

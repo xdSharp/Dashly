@@ -1,49 +1,162 @@
+var __defProp = Object.defineProperty;
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
 // server/index.ts
 import express2 from "express";
 
 // server/routes.ts
 import { createServer } from "http";
 
+// server/storage.ts
+import { drizzle } from "drizzle-orm/postgres-js";
+import { eq, and, desc, sql, gte, lte, like } from "drizzle-orm";
+import postgres from "postgres";
+import MemoryStore from "memorystore";
+import session from "express-session";
+
 // shared/schema.ts
-import { pgTable, text, serial, integer, numeric, timestamp } from "drizzle-orm/pg-core";
+var schema_exports = {};
+__export(schema_exports, {
+  businesses: () => businesses,
+  categories: () => categories,
+  csvRowSchema: () => csvRowSchema,
+  csvUploadSchema: () => csvUploadSchema,
+  customers: () => customers,
+  feedback: () => feedback,
+  insertBusinessSchema: () => insertBusinessSchema,
+  insertCategorySchema: () => insertCategorySchema,
+  insertCustomerSchema: () => insertCustomerSchema,
+  insertFeedbackSchema: () => insertFeedbackSchema,
+  insertNotificationSchema: () => insertNotificationSchema,
+  insertProductSchema: () => insertProductSchema,
+  insertSaleSchema: () => insertSaleSchema,
+  insertUserSchema: () => insertUserSchema,
+  integer: () => integer,
+  loginSchema: () => loginSchema,
+  notifications: () => notifications,
+  pgTable: () => pgTable,
+  products: () => products,
+  sales: () => sales,
+  sessions: () => sessions,
+  text: () => text,
+  users: () => users
+});
+import { pgTable, text, serial, integer, timestamp, varchar, jsonb, index, decimal, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 var users = pgTable("users", {
   id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  email: text("email").notNull().unique(),
-  name: text("name").notNull(),
-  role: text("role").notNull().default("user"),
-  // "admin" or "user"
-  createdAt: timestamp("created_at").defaultNow()
+  username: varchar("username", { length: 50 }).notNull().unique(),
+  password: varchar("password", { length: 100 }).notNull(),
+  email: varchar("email", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  role: varchar("role", { length: 20 }).notNull().default("user"),
+  // "admin" или "user"
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
 });
-var products = pgTable("products", {
+var businesses = pgTable("businesses", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  categoryId: integer("category_id").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  userId: integer("user_id").notNull()
-  // Owner of the product data
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  address: text("address"),
+  phone: varchar("phone", { length: 50 }),
+  email: varchar("email", { length: 100 }),
+  website: varchar("website", { length: 200 }),
+  logo: varchar("logo", { length: 255 }),
+  industry: varchar("industry", { length: 100 }),
+  foundedYear: integer("founded_year"),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  isDefault: boolean("is_default").default(true)
 });
 var categories = pgTable("categories", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  userId: integer("user_id").notNull()
-  // Owner of the category data
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  color: varchar("color", { length: 20 }).default("#4f86d6"),
+  icon: varchar("icon", { length: 50 }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
+});
+var products = pgTable("products", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 12, scale: 2 }).notNull(),
+  sku: varchar("sku", { length: 50 }),
+  imageUrl: varchar("image_url", { length: 255 }),
+  stock: integer("stock").default(0),
+  categoryId: integer("category_id").references(() => categories.id, { onDelete: "set null" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
 });
 var sales = pgTable("sales", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull(),
-  price: numeric("price").notNull(),
+  productId: integer("product_id").references(() => products.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: "cascade" }),
   quantity: integer("quantity").notNull(),
-  amount: numeric("amount").notNull(),
-  date: timestamp("date").notNull(),
-  employee: text("employee"),
-  userId: integer("user_id").notNull(),
-  // Owner of the sales data
-  createdAt: timestamp("created_at").defaultNow()
+  price: decimal("price", { precision: 12, scale: 2 }).notNull(),
+  totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
+  customerName: varchar("customer_name", { length: 100 }),
+  customerEmail: varchar("customer_email", { length: 100 }),
+  saleDate: timestamp("sale_date", { withTimezone: true }).defaultNow(),
+  status: varchar("status", { length: 20 }).default("completed"),
+  paymentMethod: varchar("payment_method", { length: 50 }),
+  notes: text("notes"),
+  employee: varchar("employee", { length: 100 })
+});
+var customers = pgTable("customers", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 100 }),
+  phone: varchar("phone", { length: 20 }),
+  address: text("address"),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  totalPurchases: integer("total_purchases").default(0),
+  totalSpent: decimal("total_spent", { precision: 12, scale: 2 }).default("0")
+});
+var feedback = pgTable("feedback", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").references(() => products.id, { onDelete: "cascade" }),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: "cascade" }),
+  customerId: integer("customer_id").references(() => customers.id, { onDelete: "cascade" }),
+  rating: integer("rating").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
+});
+var notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: "cascade" }),
+  message: text("message").notNull(),
+  type: varchar("type", { length: 20 }).notNull(),
+  // 'info', 'warning', 'error'
+  read: boolean("read").default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow()
+});
+var sessions = pgTable("session", {
+  sid: varchar("sid").notNull().primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire", { precision: 6, mode: "date" }).notNull()
+}, (table) => {
+  return {
+    expireIdx: index("IDX_session_expire").on(table.expire)
+  };
 });
 var insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -52,232 +165,602 @@ var insertUserSchema = createInsertSchema(users).pick({
   name: true,
   role: true
 });
-var insertProductSchema = createInsertSchema(products).pick({
-  name: true,
-  categoryId: true,
-  userId: true
+var insertBusinessSchema = createInsertSchema(businesses).omit({
+  id: true,
+  createdAt: true
 });
-var insertCategorySchema = createInsertSchema(categories).pick({
-  name: true,
-  userId: true
+var insertProductSchema = createInsertSchema(products).omit({
+  id: true,
+  createdAt: true
 });
-var insertSaleSchema = createInsertSchema(sales).pick({
-  productId: true,
-  price: true,
-  quantity: true,
-  amount: true,
-  date: true,
-  employee: true,
-  userId: true
+var insertCategorySchema = createInsertSchema(categories).omit({
+  id: true,
+  createdAt: true
+});
+var insertSaleSchema = createInsertSchema(sales).omit({
+  id: true,
+  saleDate: true
+}).extend({
+  productId: z.number(),
+  quantity: z.number(),
+  price: z.string(),
+  totalAmount: z.string(),
+  employee: z.string().optional(),
+  businessId: z.number().optional(),
+  userId: z.number()
+});
+var insertCustomerSchema = createInsertSchema(customers).omit({
+  id: true,
+  createdAt: true,
+  totalPurchases: true,
+  totalSpent: true
+});
+var insertFeedbackSchema = createInsertSchema(feedback).omit({
+  id: true,
+  createdAt: true
+});
+var insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true
 });
 var csvRowSchema = z.object({
   product_name: z.string(),
   category_name: z.string(),
   price: z.number().positive(),
   quantity: z.number().int().positive(),
-  amount: z.number().positive(),
+  total_amount: z.number().positive(),
   date: z.string().refine((date) => !isNaN(Date.parse(date)), {
     message: "Invalid date format"
   }),
-  employee: z.string().optional()
+  employee: z.string().optional(),
+  customer_name: z.string().optional(),
+  customer_email: z.string().email().optional(),
+  payment_method: z.string().optional(),
+  status: z.string().optional()
 });
 var csvUploadSchema = z.array(csvRowSchema);
 var loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required")
+  username: z.string().min(1, "\u0418\u043C\u044F \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E"),
+  password: z.string().min(1, "\u041F\u0430\u0440\u043E\u043B\u044C \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u0435\u043D")
 });
 
 // server/storage.ts
-import session from "express-session";
-import createMemoryStore from "memorystore";
-var MemoryStore = createMemoryStore(session);
-var MemStorage = class {
-  users;
-  products;
-  categories;
-  sales;
+var connectionString = process.env.DATABASE_URL || `postgres://${process.env.DB_USER || "dashly"}:${process.env.DB_PASSWORD || "dashlypass"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || "5432"}/${process.env.DB_NAME || "dashly_db"}`;
+var client = postgres(connectionString);
+var db = drizzle(client, { schema: schema_exports });
+var MemorySessionStore = MemoryStore(session);
+var sessionStore = new MemorySessionStore({
+  checkPeriod: 864e5
+  // 24 часа
+});
+var Storage = class {
+  // Хранилище сессий
   sessionStore;
-  userIdCounter;
-  productIdCounter;
-  categoryIdCounter;
-  saleIdCounter;
   constructor() {
-    this.users = /* @__PURE__ */ new Map();
-    this.products = /* @__PURE__ */ new Map();
-    this.categories = /* @__PURE__ */ new Map();
-    this.sales = /* @__PURE__ */ new Map();
-    this.userIdCounter = 1;
-    this.productIdCounter = 1;
-    this.categoryIdCounter = 1;
-    this.saleIdCounter = 1;
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 864e5
-      // prune expired entries every 24h
-    });
-    this.createUser({
-      username: "admin",
-      password: "$2b$10$K7L1OJ45/4Y2nIvhRVpCe.FSmhDdWoXehVzJptJ/op0lSsvqNu/1u",
-      // "admin123"
-      email: "admin@example.com",
-      name: "Admin User",
-      role: "admin"
-    });
-    this.createUser({
-      username: "user",
-      password: "$2b$10$NlZqGdyrZP7vZDbGcU2VMeEW5KwnB/s.UxYSOUJ9zPVh0K49e8p8m",
-      // "user123"
-      email: "user@example.com",
-      name: "Regular User",
-      role: "user"
-    });
+    this.sessionStore = sessionStore;
   }
-  // User operations
+  // Methods for users
   async getUser(id) {
-    return this.users.get(id);
+    const users2 = await db.select().from(users).where(eq(users.id, id));
+    return users2[0] || null;
   }
   async getUserByUsername(username) {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username
-    );
+    const users2 = await db.select().from(users).where(eq(users.username, username));
+    return users2[0] || null;
   }
-  async createUser(user) {
-    const id = this.userIdCounter++;
-    console.log("Storage: createUser - \u0432\u0445\u043E\u0434\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435:", user);
-    const newUser = {
-      ...user,
-      id,
-      createdAt: /* @__PURE__ */ new Date()
-    };
+  async createUser(userData) {
+    console.log("Storage: createUser - \u0432\u0445\u043E\u0434\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435:", userData);
+    const newUsers = await db.insert(users).values(userData).returning();
+    const user = newUsers[0];
     console.log("Storage: createUser - \u0441\u043E\u0437\u0434\u0430\u043D\u043D\u044B\u0439 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C:", {
-      id: newUser.id,
-      username: newUser.username,
-      role: newUser.role,
-      name: newUser.name,
-      email: newUser.email
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      name: user.name,
+      email: user.email
     });
-    this.users.set(id, newUser);
-    return newUser;
-  }
-  async getAllUsers() {
-    return Array.from(this.users.values());
+    return user;
   }
   async updateUser(id, userData) {
-    const user = await this.getUser(id);
-    if (!user) return void 0;
-    const updatedUser = { ...user, ...userData };
-    this.users.set(id, updatedUser);
-    return updatedUser;
+    const updatedUsers = await db.update(users).set(userData).where(eq(users.id, id)).returning();
+    return updatedUsers[0] || null;
   }
-  async deleteUser(id) {
-    return this.users.delete(id);
+  async getAllUsers() {
+    return await db.select().from(users);
   }
-  // Product operations
-  async getProduct(id) {
-    return this.products.get(id);
+  // Метод для получения пользователей определенной роли
+  async getUsersByRole(role) {
+    return await db.select().from(users).where(eq(users.role, role));
   }
-  async getProductByName(name, userId) {
-    return Array.from(this.products.values()).find(
-      (product) => product.name === name && product.userId === userId
-    );
+  // Метод для обновления роли пользователя (для админа)
+  async updateUserRole(id, role) {
+    const updatedUsers = await db.update(users).set({ role }).where(eq(users.id, id)).returning();
+    return updatedUsers[0] || null;
   }
-  async createProduct(product) {
-    const id = this.productIdCounter++;
-    const newProduct = {
-      ...product,
-      id,
-      createdAt: /* @__PURE__ */ new Date()
-    };
-    this.products.set(id, newProduct);
-    return newProduct;
+  // Methods for businesses
+  async getAllBusinesses(userId) {
+    return await db.select().from(businesses).where(eq(businesses.userId, userId)).orderBy(businesses.name);
   }
-  async getAllProducts(userId) {
-    return Array.from(this.products.values()).filter(
-      (product) => product.userId === userId
-    );
+  async getBusiness(id) {
+    const businesses2 = await db.select().from(businesses).where(eq(businesses.id, id));
+    return businesses2[0] || null;
   }
-  async updateProduct(id, productData) {
-    const product = await this.getProduct(id);
-    if (!product) return void 0;
-    const updatedProduct = { ...product, ...productData };
-    this.products.set(id, updatedProduct);
-    return updatedProduct;
+  async getDefaultBusiness(userId) {
+    const businesses2 = await db.select().from(businesses).where(and(
+      eq(businesses.userId, userId),
+      eq(businesses.isDefault, true)
+    ));
+    return businesses2[0] || null;
   }
-  async deleteProduct(id) {
-    return this.products.delete(id);
+  async createBusiness(businessData) {
+    if (businessData.isDefault === true) {
+      await db.update(businesses).set({ isDefault: false }).where(eq(businesses.userId, businessData.userId));
+    }
+    const newBusinesses = await db.insert(businesses).values(businessData).returning();
+    return newBusinesses[0];
   }
-  // Category operations
+  async updateBusiness(id, businessData) {
+    if (businessData.isDefault === true) {
+      const business = await this.getBusiness(id);
+      if (business) {
+        await db.update(businesses).set({ isDefault: false }).where(and(
+          eq(businesses.userId, business.userId),
+          sql`id != ${id}`
+        ));
+      }
+    }
+    const updatedBusinesses = await db.update(businesses).set(businessData).where(eq(businesses.id, id)).returning();
+    return updatedBusinesses[0] || null;
+  }
+  async deleteBusiness(id) {
+    const business = await this.getBusiness(id);
+    if (business && business.isDefault) {
+      const businessCount = await db.select({ count: sql`count(*)` }).from(businesses).where(eq(businesses.userId, business.userId));
+      if (businessCount[0].count === 1) {
+        return false;
+      }
+      const otherBusiness = await db.select().from(businesses).where(and(
+        eq(businesses.userId, business.userId),
+        sql`id != ${id}`
+      )).limit(1);
+      if (otherBusiness.length > 0) {
+        await this.updateBusiness(otherBusiness[0].id, { isDefault: true });
+      }
+    }
+    await db.delete(businesses).where(eq(businesses.id, id));
+    return true;
+  }
+  // Methods for categories
+  async getAllCategories(userId, businessId) {
+    let query = db.select().from(categories).where(eq(categories.userId, userId)).orderBy(categories.name);
+    if (businessId) {
+      query = db.select().from(categories).where(and(
+        eq(categories.userId, userId),
+        eq(categories.businessId, businessId)
+      )).orderBy(categories.name);
+    }
+    return await query;
+  }
   async getCategory(id) {
-    return this.categories.get(id);
+    const categories2 = await db.select().from(categories).where(eq(categories.id, id));
+    return categories2[0] || null;
   }
-  async getCategoryByName(name, userId) {
-    return Array.from(this.categories.values()).find(
-      (category) => category.name === name && category.userId === userId
-    );
-  }
-  async createCategory(category) {
-    const id = this.categoryIdCounter++;
-    const newCategory = {
-      ...category,
-      id,
-      createdAt: /* @__PURE__ */ new Date()
-    };
-    this.categories.set(id, newCategory);
-    return newCategory;
-  }
-  async getAllCategories(userId) {
-    return Array.from(this.categories.values()).filter(
-      (category) => category.userId === userId
-    );
+  async createCategory(categoryData) {
+    const newCategories = await db.insert(categories).values(categoryData).returning();
+    return newCategories[0];
   }
   async updateCategory(id, categoryData) {
-    const category = await this.getCategory(id);
-    if (!category) return void 0;
-    const updatedCategory = { ...category, ...categoryData };
-    this.categories.set(id, updatedCategory);
-    return updatedCategory;
+    const updatedCategories = await db.update(categories).set(categoryData).where(eq(categories.id, id)).returning();
+    return updatedCategories[0] || null;
   }
   async deleteCategory(id) {
-    return this.categories.delete(id);
+    await db.delete(categories).where(eq(categories.id, id));
+    return true;
   }
-  // Sale operations
+  // Methods for products
+  async getAllProducts(userId, businessId) {
+    let query = db.select().from(products).where(eq(products.userId, userId)).orderBy(desc(products.createdAt));
+    if (businessId) {
+      query = db.select().from(products).where(and(
+        eq(products.userId, userId),
+        eq(products.businessId, businessId)
+      )).orderBy(desc(products.createdAt));
+    }
+    return await query;
+  }
+  async getProduct(id) {
+    const products2 = await db.select().from(products).where(eq(products.id, id));
+    return products2[0] || null;
+  }
+  async createProduct(productData) {
+    const newProducts = await db.insert(products).values(productData).returning();
+    return newProducts[0];
+  }
+  async updateProduct(id, productData) {
+    const updatedProducts = await db.update(products).set(productData).where(eq(products.id, id)).returning();
+    return updatedProducts[0] || null;
+  }
+  async deleteProduct(id) {
+    await db.delete(products).where(eq(products.id, id));
+    return true;
+  }
+  // Methods for sales
+  async getAllSales(userId, businessId) {
+    let query = db.select().from(sales).where(eq(sales.userId, userId)).orderBy(desc(sales.saleDate));
+    if (businessId) {
+      query = db.select().from(sales).where(and(
+        eq(sales.userId, userId),
+        eq(sales.businessId, businessId)
+      )).orderBy(desc(sales.saleDate));
+    }
+    return await query;
+  }
   async getSale(id) {
-    return this.sales.get(id);
+    const sales2 = await db.select().from(sales).where(eq(sales.id, id));
+    return sales2[0] || null;
   }
-  async createSale(sale) {
-    const id = this.saleIdCounter++;
-    const newSale = {
-      ...sale,
-      id,
-      createdAt: /* @__PURE__ */ new Date()
-    };
-    this.sales.set(id, newSale);
-    return newSale;
-  }
-  async getAllSales(userId) {
-    return Array.from(this.sales.values()).filter(
-      (sale) => sale.userId === userId
-    );
+  async createSale(saleData) {
+    console.log("Storage: Creating sale with data:", saleData);
+    try {
+      const newSales = await db.insert(sales).values(saleData).returning();
+      console.log("Storage: Sale created successfully:", newSales[0]);
+      return newSales[0];
+    } catch (error) {
+      console.error("Storage: Error creating sale:", error);
+      throw error;
+    }
   }
   async updateSale(id, saleData) {
-    const sale = await this.getSale(id);
-    if (!sale) return void 0;
-    const updatedSale = { ...sale, ...saleData };
-    this.sales.set(id, updatedSale);
-    return updatedSale;
+    const updatedSales = await db.update(sales).set(saleData).where(eq(sales.id, id)).returning();
+    return updatedSales[0] || null;
   }
   async deleteSale(id) {
-    return this.sales.delete(id);
+    try {
+      console.log(`Storage: Deleting sale with id: ${id}`);
+      const sale = await this.getSale(id);
+      if (!sale) {
+        console.log(`Storage: Sale with id ${id} not found`);
+        return false;
+      }
+      await db.delete(sales).where(eq(sales.id, id));
+      console.log(`Storage: Sale with id ${id} deleted successfully`);
+      return true;
+    } catch (error) {
+      console.error(`Storage: Error deleting sale with id ${id}:`, error);
+      throw error;
+    }
+  }
+  // Methods for customers
+  async getAllCustomers(userId, businessId) {
+    let query = db.select().from(customers).where(eq(customers.userId, userId)).orderBy(customers.name);
+    if (businessId) {
+      query = db.select().from(customers).where(and(
+        eq(customers.userId, userId),
+        eq(customers.businessId, businessId)
+      )).orderBy(customers.name);
+    }
+    return await query;
+  }
+  async getCustomer(id) {
+    const customers2 = await db.select().from(customers).where(eq(customers.id, id));
+    return customers2[0] || null;
+  }
+  async createCustomer(customerData) {
+    const newCustomers = await db.insert(customers).values(customerData).returning();
+    return newCustomers[0];
+  }
+  async updateCustomer(id, customerData) {
+    const updatedCustomers = await db.update(customers).set(customerData).where(eq(customers.id, id)).returning();
+    return updatedCustomers[0] || null;
+  }
+  async deleteCustomer(id) {
+    await db.delete(customers).where(eq(customers.id, id));
+    return true;
+  }
+  // Метод для удаления пользователя (для админа)
+  async deleteUser(id) {
+    await db.delete(users).where(eq(users.id, id));
+    return true;
+  }
+  // Methods for feedback
+  async getAllFeedback(userId) {
+    return await db.select().from(feedback).where(eq(feedback.userId, userId)).orderBy(desc(feedback.createdAt));
+  }
+  async createFeedback(feedbackData) {
+    const newFeedback = await db.insert(feedback).values(feedbackData).returning();
+    return newFeedback[0];
+  }
+  async deleteFeedback(id) {
+    await db.delete(feedback).where(eq(feedback.id, id));
+    return true;
+  }
+  // Методы для работы с уведомлениями
+  async getUserNotifications(userId) {
+    return await db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt));
+  }
+  async createNotification(notificationData) {
+    const newNotifications = await db.insert(notifications).values(notificationData).returning();
+    return newNotifications[0];
+  }
+  async markNotificationAsRead(id, userId) {
+    const updatedNotifications = await db.update(notifications).set({ read: true }).where(
+      and(
+        eq(notifications.id, id),
+        eq(notifications.userId, userId)
+      )
+    ).returning();
+    return updatedNotifications[0] || null;
+  }
+  // Methods for analytics
+  async getSalesSummary(userId, businessId) {
+    let query = db.select({
+      totalSales: sql`count(*)`,
+      revenue: sql`sum(${sales.totalAmount})`,
+      averageOrder: sql`avg(${sales.totalAmount})`,
+      totalQuantity: sql`sum(${sales.quantity})`
+    }).from(sales).where(eq(sales.userId, userId));
+    if (businessId) {
+      query = db.select({
+        totalSales: sql`count(*)`,
+        revenue: sql`sum(${sales.totalAmount})`,
+        averageOrder: sql`avg(${sales.totalAmount})`,
+        totalQuantity: sql`sum(${sales.quantity})`
+      }).from(sales).where(and(
+        eq(sales.userId, userId),
+        eq(sales.businessId, businessId)
+      ));
+    }
+    const result = await query;
+    return result[0];
+  }
+  async getTopProducts(userId, limit = 5, businessId) {
+    let query = db.select({
+      productId: sales.productId,
+      productName: products.name,
+      totalSold: sql`sum(${sales.quantity})`,
+      totalRevenue: sql`sum(${sales.totalAmount})`
+    }).from(sales).leftJoin(products, eq(sales.productId, products.id)).where(eq(sales.userId, userId)).groupBy(sales.productId, products.name).orderBy(desc(sql`sum(${sales.totalAmount})`)).limit(limit);
+    if (businessId) {
+      query = db.select({
+        productId: sales.productId,
+        productName: products.name,
+        totalSold: sql`sum(${sales.quantity})`,
+        totalRevenue: sql`sum(${sales.totalAmount})`
+      }).from(sales).leftJoin(products, eq(sales.productId, products.id)).where(and(
+        eq(sales.userId, userId),
+        eq(sales.businessId, businessId)
+      )).groupBy(sales.productId, products.name).orderBy(desc(sql`sum(${sales.totalAmount})`)).limit(limit);
+    }
+    const result = await query;
+    return result.map((item) => ({
+      ...item,
+      productName: item.productName || "\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u044B\u0439 \u0442\u043E\u0432\u0430\u0440"
+    }));
+  }
+  async getMonthlySales(userId, year = (/* @__PURE__ */ new Date()).getFullYear(), businessId) {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59);
+    const startDateString = startDate.toISOString();
+    const endDateString = endDate.toISOString();
+    console.log(`Getting monthly sales for user ${userId}, year ${year}, businessId ${businessId || "all"}`);
+    console.log(`Date range: ${startDateString} - ${endDateString}`);
+    let query;
+    if (businessId) {
+      console.log(`Executing query with specific businessId: ${businessId}`);
+      query = db.select({
+        month: sql`EXTRACT(MONTH FROM ${sales.saleDate})`,
+        totalSales: sql`count(*)`,
+        revenue: sql`sum(${sales.totalAmount})`
+      }).from(sales).where(and(
+        eq(sales.userId, userId),
+        eq(sales.businessId, businessId),
+        sql`${sales.saleDate} BETWEEN ${startDateString} AND ${endDateString}`
+      )).groupBy(sql`EXTRACT(MONTH FROM ${sales.saleDate})`).orderBy(sql`EXTRACT(MONTH FROM ${sales.saleDate})`);
+    } else {
+      console.log(`Executing query for all businesses of user: ${userId}`);
+      query = db.select({
+        month: sql`EXTRACT(MONTH FROM ${sales.saleDate})`,
+        totalSales: sql`count(*)`,
+        revenue: sql`sum(${sales.totalAmount})`
+      }).from(sales).where(and(
+        eq(sales.userId, userId),
+        sql`${sales.saleDate} BETWEEN ${startDateString} AND ${endDateString}`
+      )).groupBy(sql`EXTRACT(MONTH FROM ${sales.saleDate})`).orderBy(sql`EXTRACT(MONTH FROM ${sales.saleDate})`);
+    }
+    const result = await query;
+    console.log(`Raw monthly sales data (${result.length} records):`, JSON.stringify(result));
+    if (result.length === 0) {
+      console.log("No monthly sales data found, creating empty dataset");
+      return Array.from({ length: 12 }, (_, i) => ({
+        month: i + 1,
+        totalSales: 0,
+        revenue: "0"
+      }));
+    }
+    const filledMonths = Array.from({ length: 12 }, (_, i) => {
+      const monthNum = i + 1;
+      const existingMonth = result.find((m) => m.month === monthNum);
+      if (existingMonth) {
+        const revenue = existingMonth.revenue !== null && existingMonth.revenue !== void 0 ? existingMonth.revenue : "0";
+        console.log(`Month ${monthNum}: Found data - revenue=${revenue}, sales=${existingMonth.totalSales}`);
+        return {
+          ...existingMonth,
+          revenue
+        };
+      }
+      console.log(`Month ${monthNum}: No data - setting default values`);
+      return {
+        month: monthNum,
+        totalSales: 0,
+        revenue: "0"
+      };
+    });
+    const hasNonZeroValues = filledMonths.some(
+      (m) => parseFloat(m.revenue) > 0 || m.totalSales > 0
+    );
+    console.log(`Monthly sales data ready, has non-zero values: ${hasNonZeroValues}`);
+    return filledMonths;
+  }
+  async getCategorySales(userId, businessId) {
+    let query = db.select({
+      categoryId: products.categoryId,
+      categoryName: categories.name,
+      totalSold: sql`sum(${sales.quantity})`,
+      totalRevenue: sql`sum(${sales.totalAmount})`
+    }).from(sales).leftJoin(products, eq(sales.productId, products.id)).leftJoin(categories, eq(products.categoryId, categories.id)).where(eq(sales.userId, userId)).groupBy(products.categoryId, categories.name).orderBy(desc(sql`sum(${sales.totalAmount})`));
+    if (businessId) {
+      query = db.select({
+        categoryId: products.categoryId,
+        categoryName: categories.name,
+        totalSold: sql`sum(${sales.quantity})`,
+        totalRevenue: sql`sum(${sales.totalAmount})`
+      }).from(sales).leftJoin(products, eq(sales.productId, products.id)).leftJoin(categories, eq(products.categoryId, categories.id)).where(and(
+        eq(sales.userId, userId),
+        eq(sales.businessId, businessId)
+      )).groupBy(products.categoryId, categories.name).orderBy(desc(sql`sum(${sales.totalAmount})`));
+    }
+    const result = await query;
+    return result.map((item) => ({
+      ...item,
+      categoryName: item.categoryName || "\u0411\u0435\u0437 \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438"
+    }));
+  }
+  // Получение продаж с применением фильтров
+  async getSalesWithFilter(userId, filters = {}) {
+    console.log(`Getting filtered sales for user ${userId}, filters:`, filters);
+    let queryBuilder = db.select({
+      id: sales.id,
+      productId: sales.productId,
+      price: sales.price,
+      quantity: sales.quantity,
+      totalAmount: sales.totalAmount,
+      customerName: sales.customerName,
+      customerEmail: sales.customerEmail,
+      saleDate: sales.saleDate,
+      status: sales.status,
+      paymentMethod: sales.paymentMethod,
+      employee: sales.employee,
+      // Получаем данные о продукте и категории
+      productName: products.name,
+      categoryName: categories.name
+    }).from(sales).leftJoin(products, eq(sales.productId, products.id)).leftJoin(categories, eq(products.categoryId, categories.id)).where(eq(sales.userId, userId)).orderBy(desc(sales.saleDate));
+    const conditions = [eq(sales.userId, userId)];
+    if (filters.businessId) {
+      conditions.push(eq(sales.businessId, filters.businessId));
+    }
+    if (filters.fromDate) {
+      conditions.push(gte(sales.saleDate, filters.fromDate.toISOString()));
+    }
+    if (filters.toDate) {
+      const endDate = new Date(filters.toDate);
+      endDate.setHours(23, 59, 59, 999);
+      conditions.push(lte(sales.saleDate, endDate.toISOString()));
+    }
+    if (filters.productId) {
+      conditions.push(eq(sales.productId, filters.productId));
+    }
+    if (filters.customerName) {
+      conditions.push(like(sales.customerName, `%${filters.customerName}%`));
+    }
+    if (filters.employee) {
+      conditions.push(like(sales.employee, `%${filters.employee}%`));
+    }
+    if (filters.status) {
+      conditions.push(eq(sales.status, filters.status));
+    }
+    queryBuilder = queryBuilder.where(and(...conditions));
+    const sales2 = await queryBuilder;
+    console.log(`Found ${sales2.length} sales matching the filters`);
+    return sales2;
+  }
+  // Получение товаров с данными о продажах
+  async getProductsWithSalesData(userId, businessId) {
+    console.log(`Getting products with sales data for user ${userId}, businessId ${businessId || "all"}`);
+    let query = db.select({
+      id: products.id,
+      name: products.name,
+      price: products.price,
+      categoryId: products.categoryId,
+      categoryName: categories.name,
+      totalSold: sql`COALESCE(sum(${sales.quantity}), 0)`,
+      totalRevenue: sql`COALESCE(sum(${sales.totalAmount}), '0')`,
+      avgPrice: sql`COALESCE(avg(${sales.price}), '0')`
+    }).from(products).leftJoin(categories, eq(products.categoryId, categories.id)).leftJoin(sales, eq(products.id, sales.productId)).where(eq(products.userId, userId)).groupBy(
+      products.id,
+      products.name,
+      products.price,
+      products.categoryId,
+      categories.name
+    ).orderBy(desc(sql`COALESCE(sum(${sales.quantity}), 0)`));
+    if (businessId) {
+      query = db.select({
+        id: products.id,
+        name: products.name,
+        price: products.price,
+        categoryId: products.categoryId,
+        categoryName: categories.name,
+        totalSold: sql`COALESCE(sum(${sales.quantity}), 0)`,
+        totalRevenue: sql`COALESCE(sum(${sales.totalAmount}), '0')`,
+        avgPrice: sql`COALESCE(avg(${sales.price}), '0')`
+      }).from(products).leftJoin(categories, eq(products.categoryId, categories.id)).leftJoin(sales, and(
+        eq(products.id, sales.productId),
+        eq(sales.businessId, businessId)
+      )).where(and(
+        eq(products.userId, userId),
+        eq(products.businessId, businessId)
+      )).groupBy(
+        products.id,
+        products.name,
+        products.price,
+        products.categoryId,
+        categories.name
+      ).orderBy(desc(sql`COALESCE(sum(${sales.quantity}), 0)`));
+    }
+    const result = await query;
+    console.log(`Found ${result.length} products with sales data`);
+    return result.map((item) => ({
+      ...item,
+      categoryName: item.categoryName || "\u0411\u0435\u0437 \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438"
+    }));
+  }
+  async getProductsStats(userId, businessId) {
+    console.log(`Getting product stats for user ${userId}, businessId ${businessId || "all"}`);
+    let query = db.select({
+      categoryId: products.categoryId,
+      categoryName: categories.name,
+      totalProducts: sql`count(${products.id})`,
+      avgPrice: sql`avg(${products.price})`
+    }).from(products).leftJoin(categories, eq(products.categoryId, categories.id)).where(eq(products.userId, userId)).groupBy(products.categoryId, categories.name).orderBy(desc(sql`count(${products.id})`));
+    if (businessId) {
+      query = db.select({
+        categoryId: products.categoryId,
+        categoryName: categories.name,
+        totalProducts: sql`count(${products.id})`,
+        avgPrice: sql`avg(${products.price})`
+      }).from(products).leftJoin(categories, eq(products.categoryId, categories.id)).where(and(
+        eq(products.userId, userId),
+        eq(products.businessId, businessId)
+      )).groupBy(products.categoryId, categories.name).orderBy(desc(sql`count(${products.id})`));
+    }
+    const result = await query;
+    console.log(`Product stats data: ${result.length} categories`);
+    const formattedResult = result.map((item) => ({
+      ...item,
+      categoryName: item.categoryName || "\u0411\u0435\u0437 \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438",
+      avgPrice: item.avgPrice || "0"
+    }));
+    if (formattedResult.length === 0) {
+      return [{
+        categoryId: null,
+        categoryName: "\u041D\u0435\u0442 \u0442\u043E\u0432\u0430\u0440\u043E\u0432",
+        totalProducts: 0,
+        avgPrice: "0"
+      }];
+    }
+    return formattedResult;
   }
 };
-var storage = new MemStorage();
-var notifications = pgTable("notifications", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: integer("user_id").notNull(),
-  message: text("message").notNull(),
-  type: text("type", { enum: ["info", "warning", "success"] }).notNull(),
-  read: integer("read", { mode: "boolean" }).notNull().default(false),
-  createdAt: text("created_at").notNull().$default(() => (/* @__PURE__ */ new Date()).toISOString())
-});
+var storage = new Storage();
 
 // server/auth.ts
 import passport from "passport";
@@ -299,14 +782,20 @@ function setupAuth(app2) {
     saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
-      secure: false,
-      // Отключаем для разработки
+      secure: process.env.NODE_ENV === "production",
+      // true в production, false в dev
       maxAge: 24 * 60 * 60 * 1e3,
       // 24 hours
       httpOnly: true,
       sameSite: "lax"
+      // 'lax' для лучшей совместимости с браузерами
     }
   };
+  if (process.env.NODE_ENV !== "production") {
+    if (sessionSettings.cookie) {
+      sessionSettings.cookie.domain = "localhost";
+    }
+  }
   app2.set("trust proxy", 1);
   app2.use(session2(sessionSettings));
   app2.use(passport.initialize());
@@ -451,11 +940,14 @@ async function processCSVData(data, userId) {
   }
 }
 async function processRow(row, userId) {
+  const defaultBusiness = await storage.getDefaultBusiness(userId);
+  const businessId = defaultBusiness?.id || null;
   let category = await storage.getCategoryByName(row.category_name, userId);
   if (!category) {
     category = await storage.createCategory({
       name: row.category_name,
-      userId
+      userId,
+      businessId
     });
   }
   let product = await storage.getProductByName(row.product_name, userId);
@@ -463,18 +955,26 @@ async function processRow(row, userId) {
     product = await storage.createProduct({
       name: row.product_name,
       categoryId: category.id,
-      userId
+      price: row.price.toString(),
+      description: "",
+      userId,
+      businessId
     });
   }
   const parsedDate = new Date(row.date);
   const sale = await storage.createSale({
     productId: product.id,
-    price: row.price,
+    price: row.price.toString(),
     quantity: row.quantity,
-    amount: row.amount,
-    date: parsedDate,
+    totalAmount: row.total_amount.toString(),
+    saleDate: parsedDate,
     employee: row.employee || "",
-    userId
+    customerName: row.customer_name || "",
+    customerEmail: row.customer_email || "",
+    paymentMethod: row.payment_method || "",
+    status: row.status || "completed",
+    userId,
+    businessId
   });
   return { category, product, sale };
 }
@@ -484,7 +984,7 @@ function parseCSV(csvContent) {
     throw new Error("CSV must contain a header row and at least one data row");
   }
   const headerRow = lines[0].split(",");
-  const requiredColumns = ["product_name", "category_name", "price", "quantity", "amount", "date"];
+  const requiredColumns = ["product_name", "category_name", "price", "quantity", "total_amount", "date"];
   for (const column of requiredColumns) {
     if (!headerRow.includes(column)) {
       throw new Error(`Missing required column: ${column}`);
@@ -502,7 +1002,7 @@ function parseCSV(csvContent) {
     for (let j = 0; j < headerRow.length; j++) {
       const key = headerRow[j].trim();
       let value = values[j].trim();
-      if (["price", "quantity", "amount"].includes(key)) {
+      if (["price", "quantity", "total_amount"].includes(key)) {
         const numValue = parseFloat(value);
         if (isNaN(numValue)) {
           throw new Error(`Invalid number for ${key} in line ${i + 1}: ${value}`);
@@ -542,162 +1042,234 @@ function parseCSVLine(line) {
 
 // server/pdf-generator.ts
 import PDFDocument from "pdfkit";
-async function generatePDF(options, outputStream) {
-  const doc = new PDFDocument({ margin: 50 });
-  doc.pipe(outputStream);
-  try {
-    await generateReportContent(doc, options);
-    doc.end();
-  } catch (error) {
-    doc.end();
-    throw error;
+import { format } from "date-fns";
+import { enUS, ru } from "date-fns/locale";
+import * as path from "path";
+import * as fs from "fs";
+import { fileURLToPath } from "url";
+var __filename = fileURLToPath(import.meta.url);
+var __dirname = path.dirname(__filename);
+var ROBOTO_FONT_PATH = path.join(__dirname, "..", "assets", "fonts", "Roboto-Regular.ttf");
+function validateFont() {
+  if (!fs.existsSync(ROBOTO_FONT_PATH)) {
+    throw new Error("\u0428\u0440\u0438\u0444\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D. \u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043D\u0430\u043B\u0438\u0447\u0438\u0435 \u0444\u0430\u0439\u043B\u0430 Roboto-Regular.ttf \u0432 \u0434\u0438\u0440\u0435\u043A\u0442\u043E\u0440\u0438\u0438 assets/fonts");
   }
+  return ROBOTO_FONT_PATH;
 }
-async function generateReportContent(doc, options) {
-  const { title, userId, filters } = options;
-  const user = await storage.getUser(userId);
-  if (!user) {
-    throw new Error("User not found");
-  }
-  const allSales = await storage.getAllSales(userId);
-  const filteredSales = allSales.filter((sale) => {
-    let match = true;
-    if (filters.startDate) {
-      match = match && sale.date >= filters.startDate;
+function containsCyrillic(text2) {
+  return /[а-яА-ЯёЁ]/.test(text2);
+}
+async function generatePDF(data, dateRange, user) {
+  return new Promise((resolve, reject) => {
+    try {
+      const fontPath = validateFont();
+      const language = containsCyrillic(user.name || "") || data.sales && data.sales.length > 0 && containsCyrillic(data.sales[0].productName || "") ? "ru" : "en";
+      const dateLocale = language === "ru" ? ru : enUS;
+      const translations = {
+        en: {
+          salesReport: "Sales Report",
+          creationDate: "Creation date",
+          user: "User",
+          reportPeriod: "Report period",
+          from: "from",
+          to: "to",
+          sales: "SALES",
+          no: "No.",
+          product: "Product",
+          qty: "Qty",
+          price: "Price",
+          amount: "Amount",
+          date: "Date",
+          status: "Status",
+          totalSalesAmount: "Total sales amount",
+          popularProducts: "POPULAR PRODUCTS",
+          category: "Category",
+          sold: "Sold",
+          revenue: "Revenue",
+          footer: "* Document automatically generated by Dashly system"
+        },
+        ru: {
+          salesReport: "\u041E\u0442\u0447\u0435\u0442 \u043E \u043F\u0440\u043E\u0434\u0430\u0436\u0430\u0445",
+          creationDate: "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F",
+          user: "\u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C",
+          reportPeriod: "\u041F\u0435\u0440\u0438\u043E\u0434 \u043E\u0442\u0447\u0435\u0442\u0430",
+          from: "\u0441",
+          to: "\u043F\u043E",
+          sales: "\u041F\u0420\u041E\u0414\u0410\u0416\u0418",
+          no: "\u2116",
+          product: "\u0422\u043E\u0432\u0430\u0440",
+          qty: "\u041A\u043E\u043B-\u0432\u043E",
+          price: "\u0426\u0435\u043D\u0430",
+          amount: "\u0421\u0443\u043C\u043C\u0430",
+          date: "\u0414\u0430\u0442\u0430",
+          status: "\u0421\u0442\u0430\u0442\u0443\u0441",
+          totalSalesAmount: "\u041E\u0431\u0449\u0430\u044F \u0441\u0443\u043C\u043C\u0430 \u043F\u0440\u043E\u0434\u0430\u0436",
+          popularProducts: "\u041F\u041E\u041F\u0423\u041B\u042F\u0420\u041D\u042B\u0415 \u0422\u041E\u0412\u0410\u0420\u042B",
+          category: "\u041A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u044F",
+          sold: "\u041F\u0440\u043E\u0434\u0430\u043D\u043E",
+          revenue: "\u0412\u044B\u0440\u0443\u0447\u043A\u0430",
+          footer: "* \u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0441\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u043D \u0441\u0438\u0441\u0442\u0435\u043C\u043E\u0439 Dashly"
+        }
+      };
+      const t = translations[language];
+      const doc = new PDFDocument({
+        size: "A4",
+        margin: 50,
+        info: {
+          Title: language === "ru" ? "\u041E\u0442\u0447\u0435\u0442 \u043E \u043F\u0440\u043E\u0434\u0430\u0436\u0430\u0445 Dashly" : "Dashly Sales Report",
+          Author: user.name || "Dashly User",
+          Subject: language === "ru" ? "\u041E\u0442\u0447\u0435\u0442 \u043E \u0431\u0438\u0437\u043D\u0435\u0441-\u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u0438" : "Business Activity Report",
+          Keywords: language === "ru" ? "\u043F\u0440\u043E\u0434\u0430\u0436\u0438, \u0442\u043E\u0432\u0430\u0440\u044B, \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438, \u0434\u043E\u0445\u043E\u0434" : "sales, products, categories, revenue",
+          CreationDate: /* @__PURE__ */ new Date()
+        },
+        autoFirstPage: true,
+        bufferPages: true
+      });
+      doc.registerFont("Roboto", fontPath);
+      doc.font("Roboto");
+      const buffers = [];
+      doc.on("data", buffers.push.bind(buffers));
+      doc.on("end", () => {
+        const pdfData = Buffer.concat(buffers);
+        resolve(pdfData);
+      });
+      doc.fontSize(18).text("DASHLY", { align: "center" }).fontSize(14).text(t.salesReport, { align: "center" }).moveDown();
+      const now = /* @__PURE__ */ new Date();
+      const dateFormat = language === "ru" ? "dd.MM.yyyy" : "MM/dd/yyyy";
+      doc.fontSize(10).text(`${t.creationDate}: ${format(now, dateFormat, { locale: dateLocale })}`).text(`${t.user}: ${user.name || "Not specified"}`).moveDown();
+      if (dateRange && (dateRange.from || dateRange.to)) {
+        let periodText = `${t.reportPeriod}: `;
+        if (dateRange.from && dateRange.to) {
+          periodText += `${t.from} ${format(new Date(dateRange.from), dateFormat, { locale: dateLocale })} ${t.to} ${format(new Date(dateRange.to), dateFormat, { locale: dateLocale })}`;
+        } else if (dateRange.from) {
+          periodText += `${t.from} ${format(new Date(dateRange.from), dateFormat, { locale: dateLocale })}`;
+        } else if (dateRange.to) {
+          periodText += `${t.to} ${format(new Date(dateRange.to), dateFormat, { locale: dateLocale })}`;
+        }
+        doc.text(periodText).moveDown();
+      }
+      doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke().moveDown();
+      if (data.sales && data.sales.length > 0) {
+        let totalAmount = 0;
+        doc.fontSize(12).text(t.sales, { underline: true }).moveDown(0.5);
+        const tableTop = doc.y;
+        const tableLeft = 50;
+        const colWidths = {
+          no: 30,
+          product: 120,
+          qty: 40,
+          price: 60,
+          amount: 70,
+          date: 70,
+          status: 90
+        };
+        doc.fontSize(9);
+        doc.text(t.no, tableLeft, tableTop);
+        doc.text(t.product, tableLeft + colWidths.no, tableTop);
+        doc.text(t.qty, tableLeft + colWidths.no + colWidths.product, tableTop);
+        doc.text(t.price, tableLeft + colWidths.no + colWidths.product + colWidths.qty, tableTop);
+        doc.text(t.amount, tableLeft + colWidths.no + colWidths.product + colWidths.qty + colWidths.price, tableTop);
+        doc.text(t.date, tableLeft + colWidths.no + colWidths.product + colWidths.qty + colWidths.price + colWidths.amount, tableTop);
+        doc.text(t.status, tableLeft + colWidths.no + colWidths.product + colWidths.qty + colWidths.price + colWidths.amount + colWidths.date, tableTop);
+        doc.moveDown();
+        const headerLineY = doc.y;
+        doc.moveTo(tableLeft, headerLineY).lineTo(tableLeft + colWidths.no + colWidths.product + colWidths.qty + colWidths.price + colWidths.amount + colWidths.date + colWidths.status, headerLineY).stroke();
+        doc.moveDown(0.5);
+        data.sales.forEach((sale, i) => {
+          const rowTop = doc.y;
+          const num = (i + 1).toString();
+          const productName = sale.productName || t.product;
+          const quantity = (sale.quantity || "0").toString();
+          const price = sale.price ? `${parseFloat(sale.price).toFixed(2)} \u20BD` : "0.00 \u20BD";
+          const amount = sale.totalAmount ? `${parseFloat(sale.totalAmount).toFixed(2)} \u20BD` : "0.00 \u20BD";
+          const dateFormat2 = language === "ru" ? "dd.MM.yy" : "MM/dd/yy";
+          const date = format(new Date(sale.saleDate || now), dateFormat2, { locale: dateLocale });
+          let status = sale.status || "Completed";
+          if (language === "ru" && status === "Completed") {
+            status = "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u043E";
+          }
+          totalAmount += parseFloat(sale.totalAmount || 0);
+          doc.text(num, tableLeft, rowTop);
+          doc.text(productName, tableLeft + colWidths.no, rowTop, { width: colWidths.product - 5 });
+          doc.text(quantity, tableLeft + colWidths.no + colWidths.product, rowTop);
+          doc.text(price, tableLeft + colWidths.no + colWidths.product + colWidths.qty, rowTop);
+          doc.text(amount, tableLeft + colWidths.no + colWidths.product + colWidths.qty + colWidths.price, rowTop);
+          doc.text(date, tableLeft + colWidths.no + colWidths.product + colWidths.qty + colWidths.price + colWidths.amount, rowTop);
+          doc.text(status, tableLeft + colWidths.no + colWidths.product + colWidths.qty + colWidths.price + colWidths.amount + colWidths.date, rowTop);
+          const textHeight = Math.max(doc.heightOfString(productName, { width: colWidths.product - 5 }), 12);
+          doc.moveDown(textHeight / 12);
+        });
+        doc.moveDown().text(`${t.totalSalesAmount}: ${totalAmount.toFixed(2)} \u20BD`, { align: "right" }).moveDown();
+      }
+      if (doc.y > doc.page.height - 200 && data.products && data.products.length > 0) {
+        doc.addPage();
+      }
+      if (data.products && data.products.length > 0) {
+        doc.fontSize(12).text(t.popularProducts, { underline: true }).moveDown(0.5);
+        const tableTop = doc.y;
+        const tableLeft = 50;
+        const colWidths = {
+          no: 30,
+          product: 120,
+          category: 120,
+          sold: 50,
+          revenue: 80
+        };
+        doc.fontSize(9);
+        doc.text(t.no, tableLeft, tableTop);
+        doc.text(t.product, tableLeft + colWidths.no, tableTop);
+        doc.text(t.category, tableLeft + colWidths.no + colWidths.product, tableTop);
+        doc.text(t.sold, tableLeft + colWidths.no + colWidths.product + colWidths.category, tableTop);
+        doc.text(t.revenue, tableLeft + colWidths.no + colWidths.product + colWidths.category + colWidths.sold, tableTop);
+        doc.moveDown();
+        const headerLineY = doc.y;
+        doc.moveTo(tableLeft, headerLineY).lineTo(tableLeft + colWidths.no + colWidths.product + colWidths.category + colWidths.sold + colWidths.revenue, headerLineY).stroke();
+        doc.moveDown(0.5);
+        data.products.forEach((product, i) => {
+          const rowTop = doc.y;
+          const num = (i + 1).toString();
+          const productName = product.name || t.product;
+          const category = product.category?.name || (language === "ru" ? "\u0411\u0435\u0437 \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438" : "No category");
+          const sold = (product.salesCount || "0").toString();
+          const revenue = `${product.totalRevenue ? parseFloat(product.totalRevenue).toFixed(2) : "0.00"} \u20BD`;
+          doc.text(num, tableLeft, rowTop);
+          doc.text(productName, tableLeft + colWidths.no, rowTop, { width: colWidths.product - 5 });
+          doc.text(category, tableLeft + colWidths.no + colWidths.product, rowTop, { width: colWidths.category - 5 });
+          doc.text(sold, tableLeft + colWidths.no + colWidths.product + colWidths.category, rowTop);
+          doc.text(revenue, tableLeft + colWidths.no + colWidths.product + colWidths.category + colWidths.sold, rowTop);
+          const textHeight = Math.max(
+            doc.heightOfString(productName, { width: colWidths.product - 5 }),
+            doc.heightOfString(category, { width: colWidths.category - 5 }),
+            12
+          );
+          doc.moveDown(textHeight / 12);
+        });
+        doc.moveDown();
+      }
+      doc.fontSize(9).text(t.footer, 50, doc.page.height - 50, {
+        align: "center",
+        width: doc.page.width - 100
+      });
+      doc.end();
+    } catch (error) {
+      console.error("\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0440\u0438 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438 PDF:", error);
+      reject(error);
     }
-    if (filters.endDate) {
-      match = match && sale.date <= filters.endDate;
-    }
-    if (filters.employee) {
-      match = match && sale.employee === filters.employee;
-    }
-    return match;
   });
-  addHeader(doc, title);
-  addMetadata(doc, user, filters);
-  addSummaryStatistics(doc, filteredSales);
-  if (options.charts.revenue) {
-    addChartSection(doc, "Revenue Over Time", options.charts.revenue);
-  }
-  if (options.charts.categories) {
-    addChartSection(doc, "Sales by Category", options.charts.categories);
-  }
-  if (options.charts.products) {
-    addChartSection(doc, "Top Products", options.charts.products);
-  }
-  await addSalesTable(doc, filteredSales);
-}
-function addHeader(doc, title) {
-  doc.fontSize(10).text("SalesVue", { align: "left" });
-  doc.moveDown(1);
-  doc.fontSize(18).font("Helvetica-Bold").text(title, { align: "center" });
-  doc.moveDown(1);
-}
-function addMetadata(doc, user, filters) {
-  doc.fontSize(10).font("Helvetica");
-  doc.text(`Generated by: ${user.name}`, { continued: true }).text(`Date: ${(/* @__PURE__ */ new Date()).toLocaleDateString()}`, { align: "right" });
-  doc.moveDown(0.5);
-  doc.text("Filters applied:", { underline: true });
-  doc.moveDown(0.5);
-  doc.text(`Date range: ${filters.startDate && filters.endDate ? `${filters.startDate.toLocaleDateString()} to ${filters.endDate.toLocaleDateString()}` : "All time"}`);
-  if (filters.employee) {
-    doc.text(`Employee: ${filters.employee}`);
-  }
-  doc.moveDown(1);
-  doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
-  doc.moveDown(1);
-}
-function addSummaryStatistics(doc, sales3) {
-  doc.fontSize(14).font("Helvetica-Bold").text("Summary", { underline: true });
-  doc.moveDown(0.5).fontSize(10).font("Helvetica");
-  const totalSales = sales3.length;
-  const totalRevenue = sales3.reduce((sum, sale) => sum + Number(sale.amount), 0);
-  const totalQuantity = sales3.reduce((sum, sale) => sum + sale.quantity, 0);
-  const averageOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
-  doc.text(`Total Sales: ${totalSales}`, { width: 200, continued: true }).text(`Total Revenue: $${totalRevenue.toFixed(2)}`, { align: "right" });
-  doc.moveDown(0.5);
-  doc.text(`Total Items Sold: ${totalQuantity}`, { width: 200, continued: true }).text(`Average Order Value: $${averageOrderValue.toFixed(2)}`, { align: "right" });
-  doc.moveDown(1);
-  doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
-  doc.moveDown(1);
-}
-function addChartSection(doc, title, chartData) {
-  doc.fontSize(14).font("Helvetica-Bold").text(title, { underline: true });
-  doc.moveDown(0.5).fontSize(10).font("Helvetica");
-  doc.text("Chart data representation:");
-  doc.moveDown(0.5);
-  chartData.labels.forEach((label, i) => {
-    const dataValue = chartData.datasets[0].data[i] || 0;
-    doc.text(`${label}: ${dataValue}`);
-  });
-  doc.moveDown(1);
-}
-async function addSalesTable(doc, sales3) {
-  doc.fontSize(14).font("Helvetica-Bold").text("Sales Data", { underline: true });
-  doc.moveDown(0.5);
-  const tableTop = doc.y;
-  const tableColumnWidth = (doc.page.width - 100) / 6;
-  doc.fontSize(10).font("Helvetica-Bold");
-  doc.text("Product", 50, tableTop, { width: tableColumnWidth, align: "left" });
-  doc.text("Category", 50 + tableColumnWidth, tableTop, { width: tableColumnWidth, align: "left" });
-  doc.text("Price", 50 + tableColumnWidth * 2, tableTop, { width: tableColumnWidth, align: "right" });
-  doc.text("Quantity", 50 + tableColumnWidth * 3, tableTop, { width: tableColumnWidth, align: "right" });
-  doc.text("Amount", 50 + tableColumnWidth * 4, tableTop, { width: tableColumnWidth, align: "right" });
-  doc.text("Date", 50 + tableColumnWidth * 5, tableTop, { width: tableColumnWidth, align: "left" });
-  doc.moveTo(50, tableTop + 15).lineTo(doc.page.width - 50, tableTop + 15).stroke();
-  doc.fontSize(10).font("Helvetica");
-  let rowTop = tableTop + 25;
-  const products3 = /* @__PURE__ */ new Map();
-  const categories3 = /* @__PURE__ */ new Map();
-  for (const sale of sales3) {
-    if (!products3.has(sale.productId)) {
-      const product2 = await storage.getProduct(sale.productId);
-      products3.set(sale.productId, product2);
-    }
-    const product = products3.get(sale.productId);
-    if (!product) continue;
-    if (!categories3.has(product.categoryId)) {
-      const category2 = await storage.getCategory(product.categoryId);
-      categories3.set(product.categoryId, category2);
-    }
-    const category = categories3.get(product.categoryId);
-    if (!category) continue;
-    if (rowTop > doc.page.height - 70) {
-      doc.addPage();
-      rowTop = 50;
-      doc.fontSize(10).font("Helvetica-Bold");
-      doc.text("Product", 50, rowTop, { width: tableColumnWidth, align: "left" });
-      doc.text("Category", 50 + tableColumnWidth, rowTop, { width: tableColumnWidth, align: "left" });
-      doc.text("Price", 50 + tableColumnWidth * 2, rowTop, { width: tableColumnWidth, align: "right" });
-      doc.text("Quantity", 50 + tableColumnWidth * 3, rowTop, { width: tableColumnWidth, align: "right" });
-      doc.text("Amount", 50 + tableColumnWidth * 4, rowTop, { width: tableColumnWidth, align: "right" });
-      doc.text("Date", 50 + tableColumnWidth * 5, rowTop, { width: tableColumnWidth, align: "left" });
-      doc.moveTo(50, rowTop + 15).lineTo(doc.page.width - 50, rowTop + 15).stroke();
-      rowTop += 25;
-      doc.fontSize(10).font("Helvetica");
-    }
-    const formattedDate = sale.date.toLocaleDateString();
-    doc.text(product.name, 50, rowTop, { width: tableColumnWidth, align: "left" });
-    doc.text(category.name, 50 + tableColumnWidth, rowTop, { width: tableColumnWidth, align: "left" });
-    doc.text(`$${Number(sale.price).toFixed(2)}`, 50 + tableColumnWidth * 2, rowTop, { width: tableColumnWidth, align: "right" });
-    doc.text(sale.quantity.toString(), 50 + tableColumnWidth * 3, rowTop, { width: tableColumnWidth, align: "right" });
-    doc.text(`$${Number(sale.amount).toFixed(2)}`, 50 + tableColumnWidth * 4, rowTop, { width: tableColumnWidth, align: "right" });
-    doc.text(formattedDate, 50 + tableColumnWidth * 5, rowTop, { width: tableColumnWidth, align: "left" });
-    rowTop += 20;
-  }
-  doc.moveTo(50, rowTop).lineTo(doc.page.width - 50, rowTop).stroke();
 }
 
 // server/routes.ts
 import { ZodError } from "zod";
+import os from "os";
 async function registerRoutes(app2) {
   setupAuth(app2);
   const httpServer = createServer(app2);
   app2.get("/api/products", isAuthenticated, async (req, res) => {
     try {
       const userId = req.user.id;
-      const products3 = await storage.getAllProducts(userId);
-      res.json(products3);
+      const businessId = req.query.businessId ? parseInt(req.query.businessId) : void 0;
+      const products2 = await storage.getAllProducts(userId, businessId);
+      res.json(products2);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch products" });
     }
@@ -705,7 +1277,18 @@ async function registerRoutes(app2) {
   app2.post("/api/products", isAuthenticated, async (req, res) => {
     try {
       const userId = req.user.id;
-      const productData = insertProductSchema.parse({ ...req.body, userId });
+      let businessId = req.body.businessId;
+      if (!businessId) {
+        const defaultBusiness = await storage.getDefaultBusiness(userId);
+        if (defaultBusiness) {
+          businessId = defaultBusiness.id;
+        }
+      }
+      const productData = {
+        ...req.body,
+        userId,
+        businessId
+      };
       const product = await storage.createProduct(productData);
       res.status(201).json(product);
     } catch (error) {
@@ -758,8 +1341,9 @@ async function registerRoutes(app2) {
   app2.get("/api/categories", isAuthenticated, async (req, res) => {
     try {
       const userId = req.user.id;
-      const categories3 = await storage.getAllCategories(userId);
-      res.json(categories3);
+      const businessId = req.query.businessId ? parseInt(req.query.businessId) : void 0;
+      const categories2 = await storage.getAllCategories(userId, businessId);
+      res.json(categories2);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch categories" });
     }
@@ -767,7 +1351,18 @@ async function registerRoutes(app2) {
   app2.post("/api/categories", isAuthenticated, async (req, res) => {
     try {
       const userId = req.user.id;
-      const categoryData = insertCategorySchema.parse({ ...req.body, userId });
+      let businessId = req.body.businessId;
+      if (!businessId) {
+        const defaultBusiness = await storage.getDefaultBusiness(userId);
+        if (defaultBusiness) {
+          businessId = defaultBusiness.id;
+        }
+      }
+      const categoryData = {
+        ...req.body,
+        userId,
+        businessId
+      };
       const category = await storage.createCategory(categoryData);
       res.status(201).json(category);
     } catch (error) {
@@ -820,8 +1415,9 @@ async function registerRoutes(app2) {
   app2.get("/api/sales", isAuthenticated, async (req, res) => {
     try {
       const userId = req.user.id;
-      const sales3 = await storage.getAllSales(userId);
-      const enrichedSales = await Promise.all(sales3.map(async (sale) => {
+      const businessId = req.query.businessId ? parseInt(req.query.businessId) : void 0;
+      const sales2 = await storage.getAllSales(userId, businessId);
+      const enrichedSales = await Promise.all(sales2.map(async (sale) => {
         const product = await storage.getProduct(sale.productId);
         let category = null;
         if (product) {
@@ -841,14 +1437,43 @@ async function registerRoutes(app2) {
   app2.post("/api/sales", isAuthenticated, async (req, res) => {
     try {
       const userId = req.user.id;
-      const saleData = insertSaleSchema.parse({ ...req.body, userId });
-      const sale = await storage.createSale(saleData);
-      res.status(201).json(sale);
-    } catch (error) {
-      if (error instanceof ZodError) {
-        return res.status(400).json({ message: error.errors[0].message });
+      console.log("Creating sale - User ID:", userId);
+      console.log("Request body:", req.body);
+      let businessId = req.body.businessId || null;
+      if (!businessId) {
+        console.log("No businessId provided, getting default business");
+        const defaultBusiness = await storage.getDefaultBusiness(userId);
+        if (defaultBusiness) {
+          businessId = defaultBusiness.id;
+          console.log("Using default business ID:", businessId);
+        }
       }
-      res.status(500).json({ message: "Failed to create sale" });
+      const product = await storage.getProduct(parseInt(req.body.productId));
+      if (!product) {
+        return res.status(400).json({ error: "Product not found" });
+      }
+      const quantity = parseInt(req.body.quantity);
+      const total = product.price * quantity;
+      const saleData = {
+        productId: parseInt(req.body.productId),
+        quantity,
+        price: product.price.toString(),
+        totalAmount: total.toString(),
+        userId,
+        businessId,
+        employee: req.body.employee || "",
+        saleDate: req.body.saleDate ? new Date(req.body.saleDate) : /* @__PURE__ */ new Date(),
+        customerName: req.body.customerName || "",
+        customerEmail: req.body.customerEmail || "",
+        paymentMethod: req.body.paymentMethod || "",
+        notes: req.body.notes || ""
+      };
+      console.log("Creating sale with data:", saleData);
+      const result = await storage.createSale(saleData);
+      res.json(result);
+    } catch (error) {
+      console.error("Error creating sale:", error);
+      res.status(500).json({ error: "Failed to create sale" });
     }
   });
   app2.put("/api/sales/:id", isAuthenticated, async (req, res) => {
@@ -862,12 +1487,31 @@ async function registerRoutes(app2) {
       if (sale.userId !== userId && req.user.role !== "admin") {
         return res.status(403).json({ message: "Not authorized to update this sale" });
       }
-      const updatedSale = await storage.updateSale(id, req.body);
+      const product = await storage.getProduct(req.body.productId);
+      if (!product) {
+        return res.status(400).json({ message: "Product not found" });
+      }
+      const quantity = parseInt(req.body.quantity);
+      const total = product.price * quantity;
+      const updateData = {
+        productId: req.body.productId,
+        quantity,
+        price: product.price.toString(),
+        totalAmount: total.toString(),
+        employee: req.body.employee || sale.employee,
+        saleDate: req.body.saleDate ? new Date(req.body.saleDate) : sale.saleDate,
+        customerName: req.body.customerName || sale.customerName,
+        customerEmail: req.body.customerEmail || sale.customerEmail,
+        paymentMethod: req.body.paymentMethod || sale.paymentMethod,
+        notes: req.body.notes || sale.notes
+      };
+      const updatedSale = await storage.updateSale(id, updateData);
       if (!updatedSale) {
         return res.status(404).json({ message: "Sale not found" });
       }
       res.json(updatedSale);
     } catch (error) {
+      console.error("Error updating sale:", error);
       res.status(500).json({ message: "Failed to update sale" });
     }
   });
@@ -875,19 +1519,30 @@ async function registerRoutes(app2) {
     try {
       const id = parseInt(req.params.id);
       const userId = req.user.id;
+      console.log(`Routes: Deleting sale with id ${id} for user ${userId}`);
       const sale = await storage.getSale(id);
       if (!sale) {
+        console.log(`Routes: Sale with id ${id} not found`);
         return res.status(404).json({ message: "Sale not found" });
       }
       if (sale.userId !== userId && req.user.role !== "admin") {
+        console.log(`Routes: User ${userId} not authorized to delete sale ${id}. Sale belongs to user ${sale.userId}`);
         return res.status(403).json({ message: "Not authorized to delete this sale" });
       }
-      const success = await storage.deleteSale(id);
-      if (!success) {
-        return res.status(404).json({ message: "Sale not found" });
+      try {
+        const success = await storage.deleteSale(id);
+        if (!success) {
+          console.log(`Routes: Failed to delete sale ${id}`);
+          return res.status(404).json({ message: "Sale not found" });
+        }
+        console.log(`Routes: Sale ${id} deleted successfully`);
+        res.status(204).send();
+      } catch (deleteError) {
+        console.error(`Routes: Error in storage.deleteSale:`, deleteError);
+        res.status(500).json({ message: "Failed to delete sale" });
       }
-      res.status(204).send();
     } catch (error) {
+      console.error(`Routes: Error in delete sale handler:`, error);
       res.status(500).json({ message: "Failed to delete sale" });
     }
   });
@@ -922,6 +1577,42 @@ async function registerRoutes(app2) {
       } else {
         res.end();
       }
+    }
+  });
+  app2.post("/api/reports/generate", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { dateRange, sections } = req.body;
+      const reportData = {};
+      const businessId = req.body.businessId;
+      if (sections.sales) {
+        const query = { userId };
+        if (businessId) query.businessId = businessId;
+        if (dateRange.from) {
+          query.fromDate = new Date(dateRange.from);
+        }
+        if (dateRange.to) {
+          query.toDate = new Date(dateRange.to);
+        }
+        reportData.sales = await storage.getSalesWithFilter(userId, query);
+      }
+      if (sections.products) {
+        reportData.products = await storage.getProductsWithSalesData(userId, businessId);
+      }
+      if (sections.categories) {
+        reportData.categories = await storage.getCategorySales(userId, businessId);
+      }
+      if (sections.revenue) {
+        reportData.revenue = await storage.getMonthlySales(userId, (/* @__PURE__ */ new Date()).getFullYear(), businessId);
+      }
+      const user = await storage.getUser(userId);
+      const pdfBuffer = await generatePDF(reportData, dateRange, user);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="report-${Date.now()}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("Error generating report:", error);
+      res.status(500).json({ message: error.message || "Failed to generate report" });
     }
   });
   app2.get("/api/notifications", isAuthenticated, async (req, res) => {
@@ -971,12 +1662,12 @@ async function registerRoutes(app2) {
   app2.get("/api/admin/users", isAuthenticated, async (req, res) => {
     try {
       if (req.user.role !== "admin") {
-        return res.status(403).json({ message: "Not authorized" });
+        return res.status(403).json({ message: "Access denied" });
       }
-      const users3 = await storage.getAllUsers();
-      const safeUsers = users3.map((user) => {
-        const { password, ...userWithoutPassword } = user;
-        return userWithoutPassword;
+      const users2 = await storage.getAllUsers();
+      const safeUsers = users2.map((user) => {
+        const { password, ...safeUser } = user;
+        return safeUser;
       });
       res.json(safeUsers);
     } catch (error) {
@@ -992,7 +1683,13 @@ async function registerRoutes(app2) {
       if (id === req.user.id && req.body.role && req.body.role !== req.user.role) {
         return res.status(400).json({ message: "Cannot change your own role" });
       }
-      const updatedUser = await storage.updateUser(id, req.body);
+      const userData = { ...req.body };
+      if (userData.password) {
+        const bcrypt2 = __require("bcrypt");
+        const salt = await bcrypt2.genSalt(10);
+        userData.password = await bcrypt2.hash(userData.password, salt);
+      }
+      const updatedUser = await storage.updateUser(id, userData);
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -1020,19 +1717,342 @@ async function registerRoutes(app2) {
       res.status(500).json({ message: "Failed to delete user" });
     }
   });
+  app2.get("/api/customers", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const businessId = req.query.businessId ? parseInt(req.query.businessId) : void 0;
+      const customers2 = await storage.getAllCustomers(userId, businessId);
+      res.json(customers2);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch customers" });
+    }
+  });
+  app2.post("/api/customers", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user.id;
+      let businessId = req.body.businessId;
+      if (!businessId) {
+        const defaultBusiness = await storage.getDefaultBusiness(userId);
+        if (defaultBusiness) {
+          businessId = defaultBusiness.id;
+        }
+      }
+      const customerData = {
+        ...req.body,
+        userId,
+        businessId
+      };
+      const customer = await storage.createCustomer(customerData);
+      res.status(201).json(customer);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      res.status(500).json({ message: "Failed to create customer" });
+    }
+  });
+  app2.put("/api/customers/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.id;
+      const customer = await storage.getCustomer(id);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      if (customer.userId !== userId && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized to update this customer" });
+      }
+      const updatedCustomer = await storage.updateCustomer(id, req.body);
+      if (!updatedCustomer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      res.json(updatedCustomer);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update customer" });
+    }
+  });
+  app2.delete("/api/customers/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.id;
+      const customer = await storage.getCustomer(id);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      if (customer.userId !== userId && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized to delete this customer" });
+      }
+      const success = await storage.deleteCustomer(id);
+      if (!success) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete customer" });
+    }
+  });
+  app2.get("/api/analytics/sales-summary", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const businessId = req.query.businessId ? parseInt(req.query.businessId) : void 0;
+      const summary = await storage.getSalesSummary(userId, businessId);
+      res.json(summary);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch sales summary" });
+    }
+  });
+  app2.get("/api/analytics/top-products", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const businessId = req.query.businessId ? parseInt(req.query.businessId) : void 0;
+      const limit = req.query.limit ? parseInt(req.query.limit) : 5;
+      const topProducts = await storage.getTopProducts(userId, limit, businessId);
+      res.json(topProducts);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch top products" });
+    }
+  });
+  app2.get("/api/analytics/monthly-sales", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const businessId = req.query.businessId ? parseInt(req.query.businessId) : void 0;
+      const year = req.query.year ? parseInt(req.query.year) : (/* @__PURE__ */ new Date()).getFullYear();
+      const monthlySales = await storage.getMonthlySales(userId, year, businessId);
+      res.json(monthlySales);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch monthly sales" });
+    }
+  });
+  app2.get("/api/businesses", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const businesses2 = await storage.getAllBusinesses(userId);
+      res.json(businesses2);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch businesses" });
+    }
+  });
+  app2.get("/api/businesses/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.id;
+      const business = await storage.getBusiness(id);
+      if (!business) {
+        return res.status(404).json({ message: "Business not found" });
+      }
+      if (business.userId !== userId && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized to view this business" });
+      }
+      res.json(business);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch business" });
+    }
+  });
+  app2.get("/api/businesses/default", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const business = await storage.getDefaultBusiness(userId);
+      if (!business) {
+        return res.status(404).json({ message: "No default business found" });
+      }
+      res.json(business);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch default business" });
+    }
+  });
+  app2.post("/api/businesses", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const businessData = { ...req.body, userId };
+      const existingBusinesses = await storage.getAllBusinesses(userId);
+      if (existingBusinesses.length === 0) {
+        businessData.isDefault = true;
+      }
+      const business = await storage.createBusiness(businessData);
+      res.status(201).json(business);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create business" });
+    }
+  });
+  app2.put("/api/businesses/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.id;
+      const business = await storage.getBusiness(id);
+      if (!business) {
+        return res.status(404).json({ message: "Business not found" });
+      }
+      if (business.userId !== userId && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized to update this business" });
+      }
+      const updatedBusiness = await storage.updateBusiness(id, req.body);
+      if (!updatedBusiness) {
+        return res.status(404).json({ message: "Business not found" });
+      }
+      res.json(updatedBusiness);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update business" });
+    }
+  });
+  app2.delete("/api/businesses/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.id;
+      const business = await storage.getBusiness(id);
+      if (!business) {
+        return res.status(404).json({ message: "Business not found" });
+      }
+      if (business.userId !== userId && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized to delete this business" });
+      }
+      const success = await storage.deleteBusiness(id);
+      if (!success) {
+        return res.status(400).json({ message: "Cannot delete default business" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete business" });
+    }
+  });
+  app2.get("/api/dashboard/summary", isAuthenticated, async (req, res) => {
+    try {
+      let userId = req.user.id;
+      const requestedUserId = req.query.userId ? parseInt(req.query.userId) : void 0;
+      if (requestedUserId && req.user.role === "admin") {
+        console.log(`Admin requesting dashboard data for user ${requestedUserId}`);
+        userId = requestedUserId;
+      }
+      const businessId = req.query.businessId ? parseInt(req.query.businessId) : void 0;
+      console.log(`Fetching dashboard data for user ${userId}, business ${businessId || "all"}`);
+      const salesSummary = await storage.getSalesSummary(userId, businessId);
+      const topProducts = await storage.getTopProducts(userId, 5, businessId);
+      const monthlySales = await storage.getMonthlySales(userId, (/* @__PURE__ */ new Date()).getFullYear(), businessId);
+      const categorySales = await storage.getCategorySales(userId, businessId);
+      const productsStats = await storage.getProductsStats(userId, businessId);
+      console.log(`Dashboard data: ${monthlySales.length} monthly records, ${topProducts.length} top products, ${categorySales.length} categories, ${productsStats.length} product categories`);
+      console.log("Raw monthly sales data:", JSON.stringify(monthlySales));
+      const formattedMonthlySales = monthlySales.map((item) => {
+        const formattedItem = {
+          ...item,
+          month: typeof item.month === "string" ? parseInt(item.month) : item.month,
+          totalSales: typeof item.totalSales === "string" ? parseInt(item.totalSales) : item.totalSales || 0,
+          revenue: typeof item.revenue === "string" ? item.revenue : String(item.revenue || 0)
+        };
+        console.log(`Month ${formattedItem.month}: revenue=${formattedItem.revenue}, sales=${formattedItem.totalSales}`);
+        return formattedItem;
+      });
+      const hasData = formattedMonthlySales.some(
+        (item) => parseFloat(item.revenue) > 0 || item.totalSales > 0
+      );
+      console.log(`Dashboard data check: has non-zero data: ${hasData}`);
+      res.json({
+        salesSummary,
+        topProducts,
+        monthlySales: formattedMonthlySales,
+        categorySales,
+        hasData,
+        productsStats
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard data" });
+    }
+  });
+  app2.get("/api/dashboard/products-stats", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const businessId = req.query.businessId ? parseInt(req.query.businessId) : void 0;
+      console.log(`Fetching products stats for user ${userId}, business ${businessId || "all"}`);
+      const productsStats = await storage.getProductsStats(userId, businessId);
+      res.json(productsStats);
+    } catch (error) {
+      console.error("Error fetching products stats:", error);
+      res.status(500).json({ message: "Failed to fetch products stats" });
+    }
+  });
+  app2.get("/api/admin/system-status", isAuthenticated, async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const cpus = os.cpus();
+      const totalMemory = os.totalmem();
+      const freeMemory = os.freemem();
+      const uptime = os.uptime();
+      const cpuUsage = cpus.reduce((acc, cpu) => {
+        const total = Object.values(cpu.times).reduce((a, b) => a + b, 0);
+        const idle = cpu.times.idle;
+        return acc + (total - idle) / total * 100;
+      }, 0) / cpus.length;
+      const memoryUsage = (totalMemory - freeMemory) / totalMemory * 100;
+      const diskUsage = 65.5;
+      const uptimeDays = Math.floor(uptime / (60 * 60 * 24));
+      const systemStatus = {
+        cpuUsage: Math.round(cpuUsage),
+        memoryUsage: Math.round(memoryUsage),
+        diskUsage: Math.round(diskUsage),
+        uptime: uptimeDays
+      };
+      res.json(systemStatus);
+    } catch (error) {
+      console.error("Error fetching system status:", error);
+      res.status(500).json({ message: "Failed to fetch system status" });
+    }
+  });
+  app2.get("/api/admin/user-activity", isAuthenticated, async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const date = /* @__PURE__ */ new Date();
+        date.setDate(date.getDate() - (6 - i));
+        return date.toISOString().split("T")[0];
+      });
+      const activityData = last7Days.map((dateStr) => {
+        return {
+          date: dateStr,
+          activeUsers: Math.floor(Math.random() * 10)
+          // Случайное число активных пользователей для демонстрации
+        };
+      });
+      res.json(activityData);
+    } catch (error) {
+      console.error("Error fetching user activity:", error);
+      res.status(500).json({ message: "Failed to fetch user activity" });
+    }
+  });
+  app2.get("/api/admin/user-sales", isAuthenticated, async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const userSales = [
+        { userId: 1, userName: "\u0410\u0434\u043C\u0438\u043D\u0438\u0441\u0442\u0440\u0430\u0442\u043E\u0440", totalSales: 125, totalRevenue: 78500 },
+        { userId: 2, userName: "\u041C\u0435\u043D\u0435\u0434\u0436\u0435\u0440", totalSales: 89, totalRevenue: 52300 },
+        { userId: 3, userName: "\u041F\u0440\u043E\u0434\u0430\u0432\u0435\u0446", totalSales: 67, totalRevenue: 41200 },
+        { userId: 4, userName: "\u0421\u0442\u0430\u0436\u0435\u0440", totalSales: 34, totalRevenue: 18700 },
+        { userId: 5, userName: "\u041A\u043E\u043D\u0441\u0443\u043B\u044C\u0442\u0430\u043D\u0442", totalSales: 56, totalRevenue: 31500 }
+      ];
+      res.json(userSales);
+    } catch (error) {
+      console.error("Error fetching user sales:", error);
+      res.status(500).json({ message: "Failed to fetch user sales" });
+    }
+  });
   return httpServer;
 }
 
 // server/vite.ts
 import express from "express";
-import fs from "fs";
-import path2 from "path";
+import fs2 from "fs";
+import path3 from "path";
 import { createServer as createViteServer, createLogger } from "vite";
 
 // vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import path from "path";
+import path2 from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 var vite_config_default = defineConfig({
   plugins: [
@@ -1046,15 +2066,20 @@ var vite_config_default = defineConfig({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "client", "src"),
-      "@shared": path.resolve(import.meta.dirname, "shared"),
-      "@assets": path.resolve(import.meta.dirname, "attached_assets")
+      "@": path2.resolve(import.meta.dirname, "client", "src"),
+      "@shared": path2.resolve(import.meta.dirname, "shared"),
+      "@assets": path2.resolve(import.meta.dirname, "attached_assets")
     }
   },
-  root: path.resolve(import.meta.dirname, "client"),
+  root: path2.resolve(import.meta.dirname, "client"),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    outDir: path2.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true
+  },
+  server: {
+    port: 3001,
+    strictPort: true,
+    open: true
   }
 });
 
@@ -1093,13 +2118,13 @@ async function setupVite(app2, server) {
   app2.use("*", async (req, res, next) => {
     const url = req.originalUrl;
     try {
-      const clientTemplate = path2.resolve(
+      const clientTemplate = path3.resolve(
         import.meta.dirname,
         "..",
         "client",
         "index.html"
       );
-      let template = await fs.promises.readFile(clientTemplate, "utf-8");
+      let template = await fs2.promises.readFile(clientTemplate, "utf-8");
       template = template.replace(
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`
@@ -1113,15 +2138,15 @@ async function setupVite(app2, server) {
   });
 }
 function serveStatic(app2) {
-  const distPath = path2.resolve(import.meta.dirname, "..", "dist", "public");
-  if (!fs.existsSync(distPath)) {
+  const distPath = path3.resolve(import.meta.dirname, "..", "dist", "public");
+  if (!fs2.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }
   app2.use(express.static(distPath));
   app2.use("*", (_req, res) => {
-    res.sendFile(path2.resolve(distPath, "index.html"));
+    res.sendFile(path3.resolve(distPath, "index.html"));
   });
 }
 
@@ -1130,15 +2155,21 @@ var app = express2();
 app.use(express2.json());
 app.use(express2.urlencoded({ extended: false }));
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE");
-  res.header("Access-Control-Allow-Headers", "Content-Type");
-  res.header("Access-Control-Allow-Credentials", "true");
+  const origin = req.headers.origin;
+  if (origin && origin.match(/^http:\/\/localhost:\d+$/)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.header("Access-Control-Allow-Credentials", "true");
+  }
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
   next();
 });
 app.use((req, res, next) => {
   const start = Date.now();
-  const path3 = req.path;
+  const path4 = req.path;
   let capturedJsonResponse = void 0;
   const originalResJson = res.json;
   res.json = function(bodyJson, ...args) {
@@ -1147,8 +2178,8 @@ app.use((req, res, next) => {
   };
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path3.startsWith("/api")) {
-      let logLine = `${req.method} ${path3} ${res.statusCode} in ${duration}ms`;
+    if (path4.startsWith("/api")) {
+      let logLine = `${req.method} ${path4} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
@@ -1168,13 +2199,26 @@ app.use((req, res, next) => {
     res.status(status).json({ message });
     throw err;
   });
-  if (app.get("env") === "development") {
+  app.use("/api/*", (req, res) => {
+    if (req.method === "OPTIONS") {
+      return res.status(200).end();
+    }
+    res.status(404).json({ message: "API endpoint not found" });
+  });
+  const serveClientApp = process.env.SERVE_CLIENT === "true";
+  if (app.get("env") === "development" && serveClientApp) {
     await setupVite(app, server);
-  } else {
+  } else if (serveClientApp) {
     serveStatic(app);
+  } else {
+    app.use("*", (req, res) => {
+      res.status(404).json({ message: "Only API endpoints are available on this server" });
+    });
   }
   const port = 5005;
   server.listen(port, "0.0.0.0", () => {
-    log(`serving on port ${port}`);
+    log(`API server running on port ${port}`);
+    log(`Mode: ${app.get("env")}, Serving client: ${serveClientApp ? "Yes" : "No"}`);
+    log(`CORS enabled for localhost connections on any port`);
   });
 })();

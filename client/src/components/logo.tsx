@@ -1,41 +1,46 @@
-import { cn } from "@/lib/utils";
+import { useTheme } from "@/hooks/use-theme";
 
 interface LogoProps {
   className?: string;
-  size?: 'sm' | 'md' | 'lg';
+  showText?: boolean;
+  size?: 'small' | 'normal';
 }
 
-export function Logo({ className, size = 'md' }: LogoProps) {
-  const sizeClasses = {
-    sm: 'h-6 w-6',
-    md: 'h-8 w-8',
-    lg: 'h-10 w-10'
-  };
-  
-  const textSizeClasses = {
-    sm: 'text-lg',
-    md: 'text-xl',
-    lg: 'text-2xl'
-  };
+export function Logo({ className = '', showText = true, size = 'normal' }: LogoProps) {
+  const { theme } = useTheme();
+  const isDarkMode = theme === 'dark';
+
+  const logoSize = size === 'small' ? 'w-7 h-7' : 'w-9 h-9';
+  const textSize = size === 'small' ? 'text-xl' : 'text-2xl';
 
   return (
-    <div className={cn("flex items-center space-x-2", className)}>
+    <div className={`flex items-center ${className}`}>
+      <div className={`flex items-center justify-center ${logoSize} bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl overflow-hidden shadow-lg shadow-blue-500/20`}>
       <svg 
-        className={cn("text-blue-500 dark:text-blue-400", sizeClasses[size])} 
+          width="24" 
+          height="24" 
         viewBox="0 0 24 24" 
         fill="none" 
         xmlns="http://www.w3.org/2000/svg" 
+          className="text-white"
+        >
+          <path 
+            d="M12 2L4 6.5M12 2L20 6.5M12 2V19M20 6.5V17.5L12 22M20 6.5L12 11M4 6.5L12 11M4 6.5V17.5L12 22M12 11V19" 
         stroke="currentColor" 
-        strokeWidth="2" 
+            strokeWidth="1.8" 
         strokeLinecap="round" 
         strokeLinejoin="round"
-      >
-        <path d="M10 3H3v18h18v-7"/>
-        <path d="M21 3h-6v6h6V3z" className="text-blue-600 dark:text-blue-300" fill="currentColor" strokeWidth="1" />
-        <path d="M8 14l2.5 2.5L16 10" className="text-green-500 dark:text-green-400" />
-        <path d="M18 16l3-3" className="text-green-500 dark:text-green-400" />
-      </svg>
-      <span className={cn("font-bold text-foreground tracking-tight", textSizeClasses[size])}>Dashly</span>
+          />
+        </svg>
+      </div>
+      
+      {showText && (
+        <span 
+          className={`ml-3 font-bold ${textSize} ${isDarkMode ? 'text-white' : 'text-blue-600'}`}
+        >
+          Dashly
+        </span>
+      )}
     </div>
   );
 }

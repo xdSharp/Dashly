@@ -5,6 +5,7 @@ import { useLocale } from "@/hooks/use-locale.tsx";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useBusiness } from "@/hooks/use-business";
 import { 
   Table, 
   TableBody, 
@@ -65,12 +66,15 @@ import { z } from "zod";
 const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
   categoryId: z.string().min(1, "Category is required"),
+  description: z.string().optional(),
+  price: z.number().min(0).optional(),
 });
 
 export default function ProductsPage() {
   const { t } = useLocale();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { currentBusiness } = useBusiness();
   
   // State
   const [searchTerm, setSearchTerm] = useState("");
@@ -85,42 +89,91 @@ export default function ProductsPage() {
     defaultValues: {
       name: "",
       categoryId: "",
+      description: "",
+      price: 0,
     },
   });
   
   // Fetch data
   const { data: productsData = [], isLoading: isLoadingProducts } = useQuery({
-    queryKey: ["/api/products"],
+    queryKey: ["/api/products", currentBusiness?.id],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/products", undefined, {
+        businessId: currentBusiness?.id
+      });
+      if (response instanceof Response) {
+        return response.json();
+      }
+      return response;
+    },
+    enabled: !!currentBusiness
   });
   
   const { data: categoriesData = [], isLoading: isLoadingCategories } = useQuery({
-    queryKey: ["/api/categories"],
+    queryKey: ["/api/categories", currentBusiness?.id],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/categories", undefined, {
+        businessId: currentBusiness?.id
+      });
+      if (response instanceof Response) {
+        return response.json();
+      }
+      return response;
+    },
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    enabled: !!currentBusiness
   });
   
   // Create product mutation
   const createProductMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest("POST", "/api/products", {
-        ...data,
-        userId: (await apiRequest("GET", "/api/user")).id,
-        categoryId: parseInt(data.categoryId)
-      });
+      try {
+        console.log("Creating product with data:", data);
+        const userResponse = await apiRequest("GET", "/api/user");
+        const userData = userResponse instanceof Response ? await userResponse.json() : userResponse;
+        
+        const productData = {
+          ...data,
+          userId: userData.id,
+          price: typeof data.price === 'string' ? parseFloat(data.price) : data.price,
+          description: data.description || ""
+        };
+        
+        console.log("Final product data:", productData);
+        const response = await apiRequest("POST", "/api/products", productData);
+        
+        if (response instanceof Response) {
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Failed to create product");
+          }
+          const result = await response.json();
+          console.log("Created product:", result);
+          return result;
+        }
+        return response;
+      } catch (error: any) {
+        console.error("Error in product creation:", error);
+        throw new Error(error.message || "Failed to create product");
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Product created successfully:", data);
       toast({
         title: t("products.createSuccess"),
         description: t("products.createSuccessDesc"),
       });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       queryClient.refetchQueries({ queryKey: ["/api/products"] });
-      queryClient.refetchQueries({ queryKey: ["/api/categories"] });
       setDialogOpen(false);
       form.reset();
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error("Error creating product:", error);
       toast({
         title: t("products.createError"),
-        description: error.message,
+        description: error.message || t("products.createError"),
         variant: "destructive",
       });
     },
@@ -179,7 +232,13 @@ export default function ProductsPage() {
     const data = {
       name: values.name,
       categoryId: parseInt(values.categoryId),
+      description: values.description,
+      price: values.price,
+      businessId: currentBusiness?.id,
     };
+    
+    console.log("Form values:", values);
+    console.log("Submitting data:", data);
     
     if (isEditing && currentProduct) {
       updateProductMutation.mutate({ id: currentProduct.id, data });
@@ -213,6 +272,12 @@ export default function ProductsPage() {
     setCurrentProduct(null);
     form.reset();
   };
+
+  // Handle dialog open
+  const handleDialogOpen = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
+    setDialogOpen(true);
+  };
   
   // Handle delete confirmation
   const handleDeleteConfirm = () => {
@@ -233,7 +298,7 @@ export default function ProductsPage() {
     <Layout title={t("pages.products")}>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">{t("products.title")}</h1>
-        <Button onClick={() => setDialogOpen(true)}>
+        <Button onClick={handleDialogOpen}>
           <Plus className="mr-2 h-4 w-4" />
           {t("products.addNew")}
         </Button>
@@ -264,15 +329,15 @@ export default function ProductsPage() {
               <TableRow>
                 <TableHead>{t("products.name")}</TableHead>
                 <TableHead>{t("products.category")}</TableHead>
-                <TableHead className="w-24">{t("common.actions")}</TableHead>
+                <TableHead>{t("products.price")}</TableHead>
+                <TableHead className="max-w-[300px]">{t("products.description")}</TableHead>
+                <TableHead className="w-24 text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredProducts.length > 0 ? (
                 filteredProducts.map((product: any) => {
-                  // Find category name
                   const category = categoriesData.find((c: any) => c.id === product.categoryId);
-                  // Check if user is admin or owner
                   const canModify = user?.role === "admin" || product.userId === user?.id;
                   
                   return (
@@ -280,26 +345,38 @@ export default function ProductsPage() {
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell>{category?.name || "—"}</TableCell>
                       <TableCell>
+                        {product.price ? `${product.price.toLocaleString()} ₽` : "—"}
+                      </TableCell>
+                      <TableCell className="max-w-[300px]">
+                        <div className="truncate">
+                          {product.description || "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <Button 
+                              variant="ghost" 
+                              className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-white/10"
+                            >
                               <span className="sr-only">{t("common.openMenu")}</span>
-                              <MoreHorizontal className="h-4 w-4" />
+                              <MoreHorizontal className="h-4 w-4 text-gray-600 dark:text-white" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>{t("common.actions")}</DropdownMenuLabel>
+                          <DropdownMenuContent align="end" className="w-[160px]">
+                            <DropdownMenuLabel className="text-gray-700 dark:text-gray-200">{t("common.actions")}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               onClick={() => handleEdit(product)}
                               disabled={!canModify}
+                              className="cursor-pointer text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white"
                             >
                               <Edit className="mr-2 h-4 w-4" />
                               {t("common.edit")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleDelete(product)}
-                              className="text-red-600 dark:text-red-400"
+                              className="cursor-pointer text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                               disabled={!canModify}
                             >
                               <Trash className="mr-2 h-4 w-4" />
@@ -313,7 +390,7 @@ export default function ProductsPage() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     {searchTerm
                       ? t("products.noSearchResults")
                       : t("products.noProducts")}
@@ -347,6 +424,7 @@ export default function ProductsPage() {
                 <div className="col-span-3">
                   <Input
                     id="name"
+                    placeholder={t("products.name")}
                     {...form.register("name")}
                   />
                   {form.formState.errors.name && (
@@ -354,6 +432,40 @@ export default function ProductsPage() {
                       {form.formState.errors.name.message}
                     </p>
                   )}
+                </div>
+              </div>
+              
+              {/* Description */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="description" className="text-right">
+                  {t("products.description")}
+                </Label>
+                <div className="col-span-3">
+                  <Input
+                    id="description"
+                    placeholder={t("products.description")}
+                    {...form.register("description")}
+                  />
+                </div>
+              </div>
+
+              {/* Price */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="price" className="text-right">
+                  {t("products.price")}
+                </Label>
+                <div className="col-span-3">
+                  <Input
+                    id="price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    {...form.register("price", { 
+                      setValueAs: (value) => value === "" ? 0 : parseFloat(value),
+                      valueAsNumber: true 
+                    })}
+                  />
                 </div>
               </div>
               
@@ -371,11 +483,21 @@ export default function ProductsPage() {
                       <SelectValue placeholder={t("products.selectCategory")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {categoriesData.map((category: any) => (
-                        <SelectItem key={category.id} value={category.id.toString()}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
+                      {isLoadingCategories ? (
+                        <div className="flex items-center justify-center p-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        </div>
+                      ) : categoriesData.length > 0 ? (
+                        categoriesData.map((category: any) => (
+                          <SelectItem key={category.id} value={category.id.toString()}>
+                            {category.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="p-2 text-sm text-gray-500 text-center">
+                          {t("categories.noCategories")}
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                   {form.formState.errors.categoryId && (
@@ -419,10 +541,12 @@ export default function ProductsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogCancel className="text-gray-700 dark:text-gray-200">
+              {t("common.cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              className="bg-red-600 hover:bg-red-700 text-white dark:bg-red-500 dark:hover:bg-red-600 dark:text-white"
               disabled={deleteProductMutation.isPending}
             >
               {deleteProductMutation.isPending && (

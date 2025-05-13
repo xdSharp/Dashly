@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
 import { useLocale } from "@/hooks/use-locale.tsx";
-import { Menu, Sun, Moon, Globe, Bell } from "lucide-react";
+import { Menu, Sun, Moon, Globe, Bell, LogOut } from "lucide-react";
 import { Notifications } from "@/components/notifications";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,90 +11,174 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
+import { useBusiness } from "@/hooks/use-business";
+import { BusinessSwitcher } from "./business/business-switcher";
+import { NotificationsPopover } from "./notifications-popover";
+import { UserMenu } from "./user-menu";
+import { Logo } from "./logo";
+
+// Language Toggle Component
+function LanguageToggle() {
+  const { locale, toggleLocale, t } = useLocale();
+  
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button 
+          variant="ghost" 
+          size="icon"
+          className="text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+          aria-label={t("language")}
+        >
+          <Globe className="h-5 w-5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={toggleLocale} className="cursor-pointer">
+          <span className={locale === "en" ? "font-bold" : ""}>English</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={toggleLocale} className="cursor-pointer">
+          <span className={locale === "ru" ? "font-bold" : ""}>Русский</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// Theme Toggle Component
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  const { t } = useLocale();
+  
+  return (
+    <Button 
+      variant="ghost" 
+      size="icon"
+      onClick={toggleTheme}
+      className="text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+      aria-label={t("theme")}
+    >
+      {theme === "dark" ? (
+        <Sun className="h-5 w-5" />
+      ) : (
+        <Moon className="h-5 w-5" />
+      )}
+    </Button>
+  );
+}
 
 interface HeaderProps {
   onMenuClick: () => void;
   title?: string;
+  isMenuOpen: boolean;
 }
 
-export function Header({ onMenuClick, title }: HeaderProps) {
+export function Header({ onMenuClick, title, isMenuOpen }: HeaderProps) {
   const [location] = useLocation();
   const { theme, toggleTheme } = useTheme();
   const { locale, toggleLocale, t } = useLocale();
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
+  const { currentBusiness } = useBusiness();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  
+  // Проверяем, является ли пользователь администратором
+  const isAdmin = user?.role === 'admin';
   
   // Page titles
   const pageTitle = title || getPageTitle(location, t);
+
+  // Handle logout
+  const handleLogout = () => {
+    logoutMutation.mutate();
+  };
   
   return (
-    <header className="z-10 py-4 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-      <div className="px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-        {/* Mobile menu button */}
-        <button
-          type="button"
-          className="md:hidden p-2 rounded-md text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none"
-          onClick={onMenuClick}
-          aria-label="Open menu"
-        >
-          <Menu className="h-6 w-6" />
-        </button>
-        
-        {/* Page title */}
-        <div className="flex-1 flex items-center justify-between md:justify-start">
-          <h1 className="text-xl md:text-2xl font-semibold text-gray-800 dark:text-white ml-3 md:ml-0">
-            {pageTitle}
-          </h1>
-        </div>
-        
-        {/* Header actions */}
-        <div className="flex items-center space-x-2 md:space-x-4">
-          <Notifications />
-          {/* Language Toggle */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                aria-label="Change language"
-              >
-                <Globe className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => toggleLocale()}>
-                {locale === 'en' ? 'Русский' : 'English'}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          
-          {/* Theme toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
-            className="text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            aria-label="Toggle theme"
-          >
-            {theme === 'dark' ? (
-              <Sun className="h-5 w-5" />
-            ) : (
-              <Moon className="h-5 w-5" />
+    <header className={cn(
+      "sticky top-0 z-40 w-full",
+      "bg-white/5 dark:bg-gray-900/5 backdrop-blur-lg shadow-sm"
+    )}>
+      <div className="px-2 h-16 flex items-center justify-between">
+        <div className="flex items-center gap-3 md:gap-2 md:mr-4">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onMenuClick}
+            className={cn(
+              "md:hidden",
+              "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
             )}
+            aria-label={isMenuOpen ? "Закрыть меню" : "Открыть меню"}
+          >
+            <Menu className="h-5 w-5" />
           </Button>
-          
-          
-          
-          {/* Profile icon */}
-          {user && (
-            <Avatar className="h-8 w-8">
-              <AvatarImage src="/avatar.png" alt={user.name} />
-              <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
-            </Avatar>
+
+          <div className="md:hidden">
+            <Logo size="small" />
+          </div>
+
+          {/* Show title on mobile - Optional */}
+          {!isAdmin && (
+            <h1 className="text-lg font-semibold md:hidden truncate text-gray-900 dark:text-white">
+              {title || (currentBusiness?.name || "")}
+            </h1>
           )}
+        </div>
+
+        {/* Middle section for desktop */}
+        <div className="hidden md:flex items-center flex-1 gap-4">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+            {isAdmin ? title || t("dashboard") : (title || currentBusiness?.name || t("dashboard"))}
+          </h1>
+          
+          {currentBusiness && !title && !isAdmin && (
+            <div className="flex items-center">
+              <span className={cn(
+                "px-2 py-0.5 text-xs rounded-full",
+                "bg-primary/10 text-primary"
+              )}>
+                {currentBusiness.industry || t("business")}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Right Section */}
+        <div className="flex items-center gap-1 mr-2">
+          {/* Business Switcher - показываем только для не-админов */}
+          {!isAdmin && (
+            <div className="hidden md:flex">
+              <BusinessSwitcher />
+            </div>
+          )}
+
+          <NotificationsPopover>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className={cn(
+                "text-gray-600 dark:text-gray-300",
+                "hover:bg-gray-100 dark:hover:bg-gray-800"
+              )}
+              aria-label={t("notifications.title")}
+            >
+              <Bell className="h-5 w-5" />
+            </Button>
+          </NotificationsPopover>
+
+          <div className="hidden md:flex">
+            <LanguageToggle />
+          </div>
+
+          <div className="hidden md:flex">
+            <ThemeToggle />
+          </div>
+
+          <UserMenu />
         </div>
       </div>
     </header>

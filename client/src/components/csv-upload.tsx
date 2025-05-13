@@ -250,7 +250,7 @@ export function CSVUpload({ onSuccess }: CSVUploadProps) {
           <h3 className="text-sm font-medium mb-2">{t('upload.formatTitle')}</h3>
           <div className="bg-gray-100 dark:bg-gray-800 rounded-md p-3 overflow-x-auto">
             <code className="text-xs text-gray-800 dark:text-gray-200">
-              product_name,category_name,price,quantity,amount,date,employee
+              product_name,category_name,price,quantity,total_amount,date,employee,customer_name,customer_email,payment_method,status
             </code>
           </div>
           <p className="text-xs text-gray-500 mt-2">{t('upload.formatDescription')}</p>
@@ -259,8 +259,8 @@ export function CSVUpload({ onSuccess }: CSVUploadProps) {
           <h3 className="text-sm font-medium mt-4 mb-2">{t('upload.exampleTitle')}</h3>
           <div className="bg-gray-100 dark:bg-gray-800 rounded-md p-3 overflow-x-auto">
             <code className="text-xs text-gray-800 dark:text-gray-200">
-              "Молоко","Продукты",50,2,100,"2023-04-01","Иван"<br />
-              "Хлеб","Продукты",30,1,30,"2023-04-01","Ольга"
+              "Молоко","Продукты",50,2,100,"2023-04-01","Иван","Клиент1","client1@example.com","Наличные","completed"<br />
+              "Хлеб","Продукты",30,1,30,"2023-04-01","Ольга","","","",""
             </code>
           </div>
         </div>

@@ -3,8 +3,13 @@ export default {
   "notifications.loading": "Loading notifications...",
   "notifications.error": "Failed to load notifications",
   "notifications.empty": "No new notifications",
+  "language": "Language",
+  "theme": "Theme",
+  "dashboard.welcome": "Welcome to your dashboard",
+  "dashboard.welcomeBusiness": "Business overview: {name}",
   // Common translations
   "common.loading": "Loading...",
+  "common.dataLoading": "Loading data...",
   "common.cancel": "Cancel",
   "common.save": "Save",
   "common.create": "Create",
@@ -19,6 +24,21 @@ export default {
   "common.dateRange": "Date range",
   "common.totalItems": "Total of {count} items",
   "common.exportReport": "Export Report",
+  "common.uncategorized": "Uncategorized",
+  "common.noResults": "No results",
+  "common.error": "Error",
+  "common.success": "Success",
+  "common.warning": "Warning",
+  "common.info": "Information",
+  "common.close": "Close",
+  "common.back": "Back",
+  "common.finish": "Finish",
+  "common.confirm": "Confirm",
+  "common.yes": "Yes",
+  "common.no": "No",
+  "common.invalidDate": "Invalid Date",
+  "common.noDate": "No Date",
+  "common.unknown": "Unknown",
 
   // Navigation and pages
   "pages.home": "Home",
@@ -32,6 +52,34 @@ export default {
   "pages.notFound": "Not Found",
   "pages.reports": "Reports",
   "pages.feedback": "Feedback",
+  "pages.privacy": "Privacy Policy",
+  "pages.terms": "Terms of Use",
+  "pages.contacts": "Contacts",
+
+  // Navbar
+  "navbar.navigation": "Navigation",
+  "navbar.dashboard": "Dashboard",
+  "navbar.dashboardDesc": "Overview of key metrics",
+  "navbar.business": "My Business",
+  "navbar.businessDesc": "Manage your business",
+  "navbar.sales": "Sales",
+  "navbar.salesDesc": "Manage sales records",
+  "navbar.products": "Products",
+  "navbar.productsDesc": "Manage product catalog",
+  "navbar.categories": "Categories",
+  "navbar.categoriesDesc": "Manage product categories",
+  "navbar.customers": "Customers",
+  "navbar.customersDesc": "Manage customer database",
+  "navbar.analytics": "Analytics",
+  "navbar.analyticsDesc": "Detailed analytics",
+  "navbar.reports": "Reports",
+  "navbar.reportsDesc": "Generate reports",
+  "navbar.feedback": "Feedback",
+  "navbar.feedbackDesc": "Reviews and suggestions",
+  "navbar.import": "Import",
+  "navbar.importDesc": "Upload data",
+  "navbar.users": "Users",
+  "navbar.usersDesc": "Manage users",
 
   // Roles
   "roles.admin": "Administrator",
@@ -55,6 +103,7 @@ export default {
   "auth.loggingIn": "Logging in...",
   "auth.registering": "Registering...",
   "auth.signOut": "Sign Out",
+  "auth.logout": "Sign Out",
   "auth.heroTitle": "Analyze and visualize your sales data",
   "auth.heroDesc": "SalesVue offers powerful analytics tools to help you understand your business performance",
   "auth.feature1": "Interactive charts and visualizations",
@@ -93,6 +142,7 @@ export default {
   "dashboard.overview": "Overview",
   "dashboard.recentSales": "Recent Sales",
   "dashboard.recentSalesDesc": "Latest transactions",
+  "dashboard.adminDashboard": "Admin Dashboard",
 
   // Admin Dashboard
   "dashboard.adminTitle": "Administrator Panel",
@@ -121,10 +171,18 @@ export default {
   "stats.activeUsers": "Active Users",
   "stats.regularUsers": "Regular Users",
   "stats.adminUsers": "Administrators",
-  "stats.total": "Total Users",
+  "stats.activeUsersDesc": "Users that have logged in recently",
+  "stats.regularUsersDesc": "Standard user accounts",
+  "stats.adminUsersDesc": "Users with admin privileges",
+  "stats.total": "Total",
   "stats.active": "Active",
   "stats.regular": "Regular",
   "stats.admin": "Admins",
+  "stats.revenue": "Total Revenue",
+  "stats.sales": "Total Sales",
+  "stats.products": "Total Products",
+  "stats.avgOrderValue": "Average Order",
+  "stats.vsLastPeriod": "vs. last period",
 
   // Filter
   "filters.category": "Category",
@@ -143,6 +201,30 @@ export default {
   "charts.products.thisMonth": "This Month",
   "charts.products.thisQuarter": "This Quarter",
   "charts.products.thisYear": "This Year",
+  "charts.salesByDay.title": "Sales by Day",
+  "charts.salesByDay.description": "Sales trend over the last 7 days",
+  "charts.categories.title": "Category Distribution",
+  "charts.noData": "No data to display",
+  "charts.productStats.title": "Product Catalog by Categories",
+  "charts.productStats.description": "Distribution of products by categories",
+  "charts.productsByCategoryTitle": "Products by Category",
+  "charts.productsByCategorySubtitle": "Distribution of products across categories",
+  "charts.noProducts": "No products in catalog",
+  "charts.addProductsHint": "Add products to see statistics",
+  "charts.productCount": "products",
+  "charts.avgPrice": "Average price",
+  "charts.category": "Category",
+  "charts.demoDataNotice": "Sample data shown",
+  "charts.addRealProducts": "Add real products to catalog",
+  "common.itemCount": "{count} items",
+  "charts.userActivity.title": "User Activity",
+  "charts.userActivity.activeUsers": "active users",
+  "charts.userActivity.description": "User activity chart for the last 7 days",
+  "charts.userSales.title": "User Sales",
+  "charts.userSales.description": "Top 5 users by sales",
+  "charts.userSales.sales": "sales",
+  "charts.userSales.revenue": "Revenue",
+  "charts.userSales.totalSales": "Total Sales",
 
   // Upload
   "upload.title": "Upload Sales Data",
@@ -182,6 +264,9 @@ export default {
 
   // Sales
   "sales.title": "Sales",
+  "sales.subtitle": "Sales data: {name}",
+  "sales.subtitleDefault": "Sales data",
+  "sales.list": "Sales list",
   "sales.product": "Product",
   "sales.category": "Category",
   "sales.price": "Price",
@@ -209,12 +294,27 @@ export default {
   "sales.noResults": "No sales found",
   "sales.allCategories": "All Categories",
   "sales.selectCategory": "Select category",
-  "sales.selectProduct": "Select product",
+  "sales.selectProduct": "Select a product",
+  "sales.selectCustomer": "Select customer",
+  "sales.total": "Total Amount",
+  "sales.customerName": "Customer Name",
+  "sales.customerEmail": "Customer Email",
+  "sales.paymentMethod": "Payment Method",
+  "sales.selectPaymentMethod": "Select payment method",
+  "sales.paymentMethodCash": "Cash",
+  "sales.paymentMethodCard": "Card",
+  "sales.paymentMethodTransfer": "Bank Transfer",
+  "sales.notes": "Notes",
+  "sales.productNotFound": "Product not found",
+  "sales.selectDate": "Select date",
+  "sales.noSales": "No sales data",
 
   // Products
   "products.title": "Products",
   "products.name": "Name",
   "products.category": "Category",
+  "products.description": "Description",
+  "products.price": "Price",
   "products.addNew": "Add New Product",
   "products.createTitle": "Create New Product",
   "products.createDesc": "Add a new product to your catalog",
@@ -235,10 +335,13 @@ export default {
   "products.noProducts": "No products found",
   "products.noSearchResults": "No products match your search",
   "products.selectCategory": "Select category",
+  "products.selectProduct": "Select product",
 
   // Categories
   "categories.title": "Categories",
   "categories.name": "Name",
+  "categories.description": "Description",
+  "categories.descriptionPlaceholder": "Enter category description",
   "categories.addNew": "Add New Category",
   "categories.createTitle": "Create New Category",
   "categories.createDesc": "Add a new category to your catalog",
@@ -310,10 +413,210 @@ export default {
   "users.cannotChangeOwnRole": "You cannot change your own role",
   "users.notAuthorized": "Access Denied",
   "users.adminRequired": "You need administrator privileges to access this page",
+  "users.passwordChangeTitle": "Change Password",
+  "users.passwordChangeDesc": "Set a new password for this user",
+  "users.newPassword": "New Password",
+  "users.passwordChangeSuccess": "Password Changed",
+  "users.passwordChangeSuccessDesc": "User's password has been successfully changed",
+  "users.passwordChangeError": "Password Change Failed",
+  "users.noPasswordChange": "No Password Change",
 
   // Reports
   "reports.title": "Sales Report",
   "reports.exportSuccess": "Report Exported",
   "reports.exportSuccessDesc": "Your PDF report has been generated successfully",
   "reports.exportError": "Export Failed",
+  "reports.pageTitle": "Reports",
+  "reports.pageDescription": "Create and export reports on sales and analytics",
+  "reports.settings": "Report Settings",
+  "reports.period": "Period",
+  "reports.sections": "Report Sections",
+  "reports.sales": "Sales",
+  "reports.products": "Products",
+  "reports.categories": "Categories",
+  "reports.revenue": "Revenue",
+  "reports.generating": "Generating...",
+  "reports.download": "Download Report",
+  "reports.lastDownloaded": "Last downloaded report:",
+  "reports.generationError": "Error creating report",
+  "reports.failedToGenerate": "Failed to generate report",
+  "reports.successTitle": "Report successfully generated",
+  "reports.successDesc": "File \"{filename}\" has been downloaded",
+
+  // Feedback
+  "feedback.title": "Customer Feedback",
+  "feedback.product": "Product",
+  "feedback.customer": "Customer",
+  "feedback.rating": "Rating",
+  "feedback.comment": "Comment",
+  "feedback.date": "Date",
+  "feedback.noFeedback": "No Feedback Available",
+  "feedback.noFeedbackDesc": "There are currently no customer reviews or feedback",
+  "feedback.unknownProduct": "Unknown Product",
+  "feedback.unknownCustomer": "Unknown Customer",
+  "feedback.deleteTitle": "Delete Feedback",
+  "feedback.deleteDesc": "Are you sure you want to delete this feedback? This action cannot be undone.",
+  "feedback.deleteSuccess": "Feedback Deleted",
+  "feedback.deleteSuccessDesc": "The feedback has been successfully deleted",
+  "feedback.deleteError": "Error Deleting Feedback",
+  "feedback.addNew": "Add Feedback",
+  "feedback.createTitle": "Create Feedback",
+  "feedback.createDesc": "Add new customer feedback",
+  "feedback.createSuccess": "Feedback Created",
+  "feedback.createSuccessDesc": "Feedback has been successfully created",
+  "feedback.updateSuccess": "Feedback Updated",
+  "feedback.updateSuccessDesc": "Feedback has been successfully updated",
+  "feedback.createError": "Error Creating Feedback",
+  "feedback.formIncomplete": "Please select a product and customer",
+
+  // Business
+  "businesses": "Businesses",
+  "current_business": "Current Business",
+  "select_business": "Select Business",
+  "search_business": "Search business",
+  "no_business_found": "No businesses found",
+  "your_businesses": "Your Businesses",
+  "create_business": "Create Business",
+  "create_business_description": "Add information about your business",
+  "edit_business": "Edit Business",
+  "edit_business_description": "Update your business information",
+  "create_new_business": "Create New Business",
+  "delete_business": "Delete Business",
+  "delete_business_confirmation": "Are you sure you want to delete business \"{name}\"? This action cannot be undone.",
+  "manage_businesses": "Manage Businesses",
+  "manage_businesses_description": "Create and manage your businesses",
+  "add_business": "Add Business",
+  "add_first_business": "Add First Business",
+  "no_businesses": "No Businesses",
+  "no_businesses_description": "You don't have any businesses yet. Create your first business to get started.",
+  "businesses_list_description": "List of all your businesses",
+  "total_businesses": "Total businesses: {count}",
+  "business_name": "Business Name",
+  "default_business": "Default Business",
+  "set_as_default": "Set as Default",
+  "default": "Default",
+  "description": "Description",
+  "industry": "Industry",
+  "founded_year": "Founded Year",
+  "address": "Address",
+  "phone": "Phone",
+  "email": "Email",
+  "website": "Website",
+  "name": "Name",
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+
+  // Footer
+  "footer.rights": "All rights reserved.",
+  "footer.privacy": "Privacy",
+  "footer.terms": "Terms",
+  "footer.contacts": "Contacts",
+
+  // Privacy Policy
+  "privacy.title": "Privacy Policy",
+  "privacy.introduction": {
+    "title": "Introduction",
+    "description": "We take your privacy seriously. This privacy policy describes how we collect, use, and protect your information."
+  },
+  "privacy.dataCollection": {
+    "title": "Data Collection",
+    "description": "We collect the following types of information:",
+    "item1": "Information you provide during registration",
+    "item2": "Service usage data",
+    "item3": "Technical information about your device",
+    "item4": "Cookies and similar technologies"
+  },
+  "privacy.dataUsage": {
+    "title": "Data Usage",
+    "description": "We use the collected information for:",
+    "item1": "Providing and improving our services",
+    "item2": "Personalizing your experience",
+    "item3": "Ensuring security"
+  },
+  "privacy.dataSecurity": {
+    "title": "Data Security",
+    "description": "We implement modern technical and organizational measures to protect your data."
+  },
+  "privacy.cookies": {
+    "title": "Use of Cookies",
+    "description": "We use cookies to improve service functionality and provide a personalized experience."
+  },
+  "privacy.thirdParty": {
+    "title": "Third-Party Data Sharing",
+    "description": "We do not sell your data to third parties and only share it when required by law."
+  },
+  "privacy.changes": {
+    "title": "Policy Changes",
+    "description": "We may update this policy. All changes will be posted on this page."
+  },
+  "privacy.contact": {
+    "title": "Contact",
+    "description": "If you have questions about our privacy policy, please contact us."
+  },
+
+  // Terms of Use
+  "terms.title": "Terms of Use",
+  "terms.introduction": {
+    "title": "Introduction",
+    "description": "Please read these terms of use carefully."
+  },
+  "terms.usage": {
+    "title": "Service Usage",
+    "description": "By using our service, you agree to:",
+    "item1": "Comply with all applicable laws and regulations",
+    "item2": "Not violate other users' rights",
+    "item3": "Use the service only as intended"
+  },
+  "terms.account": {
+    "title": "Account",
+    "description": "Your account obligations:",
+    "item1": "Provide accurate information",
+    "item2": "Protect your credentials",
+    "item3": "Be responsible for all actions under your account"
+  },
+  "terms.content": {
+    "title": "Content",
+    "description": "You are responsible for all content you post or upload through the service."
+  },
+  "terms.intellectual": {
+    "title": "Intellectual Property",
+    "description": "All rights to the service and its content belong to us or our licensors."
+  },
+  "terms.liability": {
+    "title": "Limitation of Liability",
+    "description": "We are not liable for any indirect damages related to the use of the service."
+  },
+  "terms.termination": {
+    "title": "Access Termination",
+    "description": "We reserve the right to terminate or suspend your access to the service at any time."
+  },
+  "terms.changes": {
+    "title": "Terms Changes",
+    "description": "We may modify these terms. By continuing to use the service after changes, you accept the new terms."
+  },
+
+  // Contacts
+  "contacts.title": "Contacts",
+  "contacts.info": "Contact Information",
+  "contacts.email": "Email",
+  "contacts.phone": "Phone",
+  "contacts.address": "Address",
+  "contacts.addressLine1": "123 Example Street",
+  "contacts.addressLine2": "Moscow, 123456",
+  "contacts.form": {
+    "title": "Write to Us",
+    "name": "Name",
+    "namePlaceholder": "Enter your name",
+    "email": "Email",
+    "emailPlaceholder": "Enter your email",
+    "message": "Message",
+    "messagePlaceholder": "Enter your message",
+    "submit": "Send"
+  },
+  "system.cpuUsage": "CPU Usage",
+  "system.memoryUsage": "Memory Usage",
+  "system.diskUsage": "Disk Usage",
+  "system.uptime": "Uptime",
+  "system.days": "days"
 };

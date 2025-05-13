@@ -42,7 +42,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   // Translation function
   const t: TranslateFunction = (key, params = {}) => {
-    const translation = translations[locale][key] || key;
+    const translation = translations[locale][key];
+    
+    // If translation is not found, return the key and log a warning in development
+    if (!translation) {
+      console.warn(`Translation missing for key: ${key}`);
+      return key;
+    }
     
     // Replace parameters in the translation
     return translation.replace(/{(\w+)}/g, (_, param) => {

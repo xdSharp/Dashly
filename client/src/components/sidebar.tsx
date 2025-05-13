@@ -1,24 +1,27 @@
-import { useState } from "react";
-import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { Logo } from "./logo";
+import { Logo } from "@/components/logo";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { BusinessSwitcher } from "@/components/business/business-switcher";
 import { useAuth } from "@/hooks/use-auth";
-import { useLocale } from "@/hooks/use-locale.tsx";
+import { useLocale } from "@/hooks/use-locale";
 import { 
   LayoutDashboard, 
-  Upload, 
+  Building2, 
   LayoutList, 
   PackageOpen, 
   FolderOpen, 
-  User, 
-  Users, 
-  LogOut,
-  FileText,
-  MessageSquare
+  FileText, 
+  Upload,
+  Users,
+  LucideIcon
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "wouter";
+
+interface NavItem {
+  icon: LucideIcon;
+  href: string;
+  label: string;
+}
 
 interface SidebarProps {
   className?: string;
@@ -26,184 +29,145 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+function NavigationItem({ 
+  href, 
+  icon: Icon, 
+  children, 
+  active, 
+  onClick 
+}: { 
+  href: string; 
+  icon: LucideIcon; 
+  children: React.ReactNode; 
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <Link 
+      href={href}
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+        active && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
+      )}
+    >
+      <Icon className="h-4 w-4" />
+      <span>{children}</span>
+    </Link>
+  );
+}
+
 export function Sidebar({ className, isMobile = false, onClose }: SidebarProps) {
-  const [location] = useLocation();
-  const { user, logoutMutation } = useAuth();
+  const { user } = useAuth();
   const { t } = useLocale();
+  const currentPath = window.location.pathname;
 
-  // Handle navigation item click (closes mobile menu if needed)
-  const handleNavClick = () => {
-    if (isMobile && onClose) {
-      onClose();
-    }
-  };
+  // Проверяем, является ли пользователь администратором
+  const isAdmin = user?.role === 'admin';
 
-  // Handle logout
-  const handleLogout = () => {
-    logoutMutation.mutate();
-    if (isMobile && onClose) {
-      onClose();
-    }
-  };
-
-  // Get the first letter of user's name for avatar fallback
-  const getAvatarInitial = (name: string) => {
-    return name.charAt(0).toUpperCase();
-  };
-
-  // Navigation items for regular users
-  const navItems = [
-    { 
-      path: '/dashboard', 
-      label: t('sidebar.dashboard'), 
-      icon: <LayoutDashboard className="h-5 w-5 mr-3" /> 
+  // Определяем навигационные элементы для обычных пользователей
+  const userItems: NavItem[] = [
+    {
+      icon: LayoutDashboard,
+      href: '/dashboard',
+      label: t('navbar.dashboard'),
     },
-    { 
-      path: '/reports', 
-      label: t('pages.reports'), 
-      icon: <FileText className="h-5 w-5 mr-3" /> 
+    {
+      icon: Building2,
+      href: '/business',
+      label: t('navbar.business'),
     },
-    { 
-      path: '/feedback', 
-      label: t('pages.feedback'), 
-      icon: <MessageSquare className="h-5 w-5 mr-3" /> 
-    }
+    {
+      icon: LayoutList,
+      href: '/sales',
+      label: t('navbar.sales'),
+    },
+    {
+      icon: PackageOpen,
+      href: '/products',
+      label: t('navbar.products'),
+    },
+    {
+      icon: FolderOpen,
+      href: '/categories',
+      label: t('navbar.categories'),
+    },
+    {
+      icon: FileText,
+      href: '/reports',
+      label: t('navbar.reports'),
+    },
+    {
+      icon: Upload,
+      href: '/upload',
+      label: t('navbar.import'),
+    },
   ];
 
-  // Regular user only items (hidden from admin)
-  const regularItems = user?.role !== 'admin' ? [
-    { 
-      path: '/upload', 
-      label: t('sidebar.upload'), 
-      icon: <Upload className="h-5 w-5 mr-3" /> 
+  // Определяем навигационные элементы для администратора
+  const adminItems: NavItem[] = [
+    {
+      icon: LayoutDashboard,
+      href: '/dashboard',
+      label: t('navbar.dashboard'),
     },
-    { 
-      path: '/sales', 
-      label: t('sidebar.sales'), 
-      icon: <LayoutList className="h-5 w-5 mr-3" /> 
+    {
+      icon: Users,
+      href: '/users',
+      label: t('navbar.users'),
     },
-    { 
-      path: '/products', 
-      label: t('sidebar.products'), 
-      icon: <PackageOpen className="h-5 w-5 mr-3" /> 
-    },
-    { 
-      path: '/categories', 
-      label: t('sidebar.categories'), 
-      icon: <FolderOpen className="h-5 w-5 mr-3" /> 
-    }
-  ] : [];
-
-  // Admin only items
-  const adminItems = [
-    { 
-      path: '/users', 
-      label: t('sidebar.users'), 
-      icon: <Users className="h-5 w-5 mr-3" /> 
-    }
   ];
+
+  // Выбираем нужный набор элементов в зависимости от роли
+  const navigationItems = isAdmin ? adminItems : userItems;
 
   return (
     <aside className={cn(
-      "flex flex-col h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out",
+      "flex flex-col h-full backdrop-blur-md bg-white/5 dark:bg-gray-800/5 border-r border-gray-200 dark:border-white/10 transition-all duration-300 ease-in-out",
       className
     )}>
       {/* Logo */}
-      <div className="flex items-center justify-center h-16 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-center h-16 border-b border-gray-200 dark:border-white/10">
         <Logo />
       </div>
 
-      {/* Navigation Links */}
-      <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto scrollbar-hide">
-        {[...navItems, ...regularItems].map((item) => (
-          <Link 
-            key={item.path}
-            href={item.path}
-            onClick={handleNavClick}
-          >
-            <a className={cn(
-              "flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors",
-              location === item.path 
-                ? "bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400" 
-                : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-            )}>
-              {item.icon}
-              {item.label}
-            </a>
-          </Link>
-        ))}
-
-        {/* Admin Section */}
-        {user?.role === 'admin' && (
-          <div className="pt-4 mt-4 space-y-1 border-t border-gray-200 dark:border-gray-700">
-            <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              {t('sidebar.admin')}
+      {/* Business Switcher - показываем только для не-админов */}
+      {user && !isAdmin && (
+        <div className="px-4 py-2 border-b border-gray-200 dark:border-white/10">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium text-black dark:text-gray-300">
+              {t('current_business')}
             </p>
-
-            {adminItems.map((item) => (
-              <Link 
-                key={item.path}
-                href={item.path}
-                onClick={handleNavClick}
-              >
-                <a className={cn(
-                  "flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors",
-                  location === item.path 
-                    ? "bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400" 
-                    : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                )}>
-                  {item.icon}
-                  {item.label}
-                </a>
-              </Link>
-            ))}
+            <BusinessSwitcher />
           </div>
-        )}
-      </nav>
+        </div>
+      )}
 
-      {/* User Profile */}
-      <div className="border-t border-gray-200 dark:border-gray-700 p-4">
-        {user ? (
-          <>
-            <div className="flex items-center">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src="/avatar.png" alt={user.name} />
-                <AvatarFallback>{getAvatarInitial(user.name)}</AvatarFallback>
-              </Avatar>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{user.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {user.role === 'admin' ? t('roles.admin') : t('roles.user')}
-                </p>
-              </div>
-            </div>
-            <div className="mt-3">
-              <Button 
-                variant="outline" 
-                className="w-full flex items-center justify-center"
-                onClick={handleLogout}
-                disabled={logoutMutation.isPending}
+      {/* Navigation Links */}
+      <ScrollArea className="h-[calc(100vh-10rem)]">
+        <div className="px-6 py-2">
+          <h2 className="mb-4 text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
+            {t('navbar.navigation')}
+          </h2>
+          <nav className="flex flex-col space-y-1">
+            {navigationItems.map((item) => (
+              <NavigationItem
+                key={item.href}
+                href={item.href}
+                icon={item.icon}
+                active={currentPath === item.href}
+                onClick={() => {
+                  if (isMobile && onClose) {
+                    onClose();
+                  }
+                }}
               >
-                <LogOut className="h-4 w-4 mr-2" />
-                {t('auth.signOut')}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center">
-              <Skeleton className="h-10 w-10 rounded-full" />
-              <div className="ml-3 space-y-1">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-3 w-16" />
-              </div>
-            </div>
-            <div className="mt-3">
-              <Skeleton className="h-9 w-full" />
-            </div>
-          </>
-        )}
-      </div>
+                {item.label}
+              </NavigationItem>
+            ))}
+          </nav>
+        </div>
+      </ScrollArea>
     </aside>
   );
 }

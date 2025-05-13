@@ -61,11 +61,15 @@ export interface Sale {
   quantity: number;
   amount: number;
   employee: string;
-  date: string;
+  saleDate: string;
   userId: number;
   createdAt: string;
   product?: Product;
   category?: Category;
+  customerName?: string;
+  customerEmail?: string;
+  paymentMethod?: string;
+  notes?: string;
 }
 
 export interface InsertSale {
@@ -74,6 +78,10 @@ export interface InsertSale {
   quantity: number;
   amount: number;
   employee: string;
-  date: string;
+  saleDate: string;
   userId: number;
+  customerName?: string;
+  customerEmail?: string;
+  paymentMethod?: string;
+  notes?: string;
 } 

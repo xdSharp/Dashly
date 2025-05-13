@@ -5,6 +5,14 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
+import { useQuery } from "@tanstack/react-query";
+import { Cell, Treemap, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLocale } from "@/hooks/use-locale";
+import { useMemo } from "react";
+import { BarChart, Bar, XAxis, YAxis } from "recharts";
+import { useBusiness } from "@/hooks/use-business";
+import { apiRequest } from "@/lib/queryClient";
 
 ChartJS.register(
   ArcElement,
@@ -13,10 +21,15 @@ ChartJS.register(
 );
 
 interface ProductsChartProps {
-  data: any[];
+  data?: any[];
+  isLoading?: boolean;
+  userId?: number;
+  businessId?: number;
 }
 
-export function ProductsChart({ data }: ProductsChartProps) {
+export function ProductsChart({ data, isLoading }: ProductsChartProps) {
+  const { t } = useLocale();
+  
   // Process data for chart
   const products = [...new Set(data.map(sale => sale.product?.name || 'Unknown'))];
   const salesByProduct = products.map(product => {
@@ -57,10 +70,18 @@ export function ProductsChart({ data }: ProductsChartProps) {
       },
       title: {
         display: true,
-        text: 'Sales by Product',
+        text: t("charts.products.title"),
       },
     },
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[300px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
@@ -68,11 +89,6 @@ export function ProductsChart({ data }: ProductsChartProps) {
     </div>
   );
 }
-
-import { useQuery } from "@tanstack/react-query";
-import { Cell, Treemap, ResponsiveContainer, Tooltip } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useLocale } from "@/hooks/use-locale";
 
 export function ProductsChartRecharts() {
   const { t } = useLocale();
@@ -112,7 +128,7 @@ export function ProductsChartRecharts() {
             nameKey="name"
             aspectRatio={4 / 3}
           >
-            <Tooltip />
+            <RechartsTooltip />
             {chartData[0]?.children?.map((_, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
@@ -120,5 +136,188 @@ export function ProductsChartRecharts() {
         </ResponsiveContainer>
       </CardContent>
     </Card>
+  );
+}
+
+export function ProductsChartDashboard({ 
+  data: propData, 
+  isLoading: propIsLoading,
+  userId,
+  businessId
+}: ProductsChartProps) {
+  const { t, locale } = useLocale();
+  const { currentBusiness } = useBusiness();
+
+  // Используем явно переданный businessId или текущий бизнес
+  const effectiveBusinessId = businessId !== undefined 
+    ? businessId 
+    : currentBusiness?.id;
+
+  // Fetch dashboard data with business filter if data is not provided as props
+  const { data: dashboardData, isLoading: isDashboardLoading } = useQuery({
+    queryKey: ["/api/dashboard/summary", effectiveBusinessId, userId],
+    queryFn: async () => {
+      // Удаляем тестовый ID пользователя
+      // const testUserId = 7; // Закомментировано, используем реального пользователя
+      let params = '';
+      
+      // Добавляем businessId, если он указан
+      if (effectiveBusinessId !== undefined) {
+        params += `${params ? '&' : '?'}businessId=${effectiveBusinessId}`;
+      }
+      
+      // Добавляем userId, если он указан
+      if (userId !== undefined) {
+        params += `${params ? '&' : '?'}userId=${userId}`;
+      }
+      
+      console.log("ProductsChart: Запрос данных для графика с параметрами:", { 
+        userId, 
+        businessId: effectiveBusinessId, 
+        url: `/api/dashboard/summary${params}` 
+      });
+      
+      try {
+        const response = await apiRequest("GET", `/api/dashboard/summary${params}`);
+        if (response instanceof Response) {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const result = await response.json();
+          console.log("ProductsChart: Получены данные:", result);
+          return result;
+        }
+        return response;
+      } catch (error) {
+        console.error("ProductsChart: Ошибка при получении данных:", error);
+        throw error;
+      }
+    },
+    enabled: !propData,
+    refetchOnWindowFocus: true,
+    retry: 3
+  });
+
+  // Prepare top products data
+  const topProductsData = useMemo(() => {
+    // Если данные переданы как пропсы, используем их
+    if (propData && propData.length > 0) {
+      return propData;
+    }
+    
+    // Иначе используем данные из запроса
+    if (!dashboardData?.topProducts) return [];
+    
+    console.log("Products chart data:", dashboardData.topProducts);
+    
+    return dashboardData.topProducts
+      .filter((item: any) => item.productName) // Фильтруем только товары с именами
+      .map((item: any) => ({
+        name: item.productName || 'Unknown',
+        revenue: parseFloat(item.totalRevenue || 0),
+        quantity: item.totalSold || 0
+      }))
+      .sort((a: any, b: any) => b.revenue - a.revenue)
+      .slice(0, 5);
+  }, [propData, dashboardData?.topProducts]);
+
+  // Определяем состояние загрузки
+  const isLoading = propIsLoading || (isDashboardLoading && !propData);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[300px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Если данных нет, показываем пустой график
+  if (!topProductsData || topProductsData.length === 0) {
+    // Создаём пустые данные для товаров
+    const emptyData = [
+      { name: t('common.product1'), revenue: 0, quantity: 0 },
+      { name: t('common.product2'), revenue: 0, quantity: 0 },
+      { name: t('common.product3'), revenue: 0, quantity: 0 },
+      { name: t('common.product4'), revenue: 0, quantity: 0 },
+      { name: t('common.product5'), revenue: 0, quantity: 0 }
+    ];
+    
+    return (
+      <div className="flex flex-col items-center justify-center">
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={emptyData}>
+            <XAxis 
+              dataKey="name" 
+              tick={{ fill: 'var(--foreground)' }}
+              stroke="var(--chart-axis)"
+            />
+            <YAxis 
+              tick={{ fill: 'var(--foreground)' }}
+              stroke="var(--chart-axis)"
+            />
+            <RechartsTooltip 
+              contentStyle={{ 
+                backgroundColor: 'var(--tooltip-bg)',
+                border: '1px solid var(--tooltip-border)',
+                color: 'var(--tooltip-color)',
+                boxShadow: 'var(--tooltip-shadow)',
+                fontWeight: 500
+              }}
+              formatter={(value, name) => [
+                name === 'revenue' 
+                  ? new Intl.NumberFormat(locale, { style: 'currency', currency: 'RUB' }).format(Number(value))
+                  : `${value} ${t('common.itemCount', { count: value })}`,
+                name === 'revenue' ? t('stats.revenue') : t('stats.sales')
+              ]}
+              labelStyle={{ color: 'var(--tooltip-color)', fontWeight: 600, marginBottom: '4px' }}
+              itemStyle={{ color: 'var(--tooltip-color)' }}
+              wrapperStyle={{ outline: 'none' }}
+            />
+            <Bar dataKey="revenue" fill="var(--primary)" name={t('stats.revenue')} />
+            <Bar dataKey="quantity" fill="var(--secondary)" name={t('stats.sales')} />
+          </BarChart>
+        </ResponsiveContainer>
+        <div className="text-center text-sm text-gray-500 mt-2">
+          {t("charts.noData")}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={topProductsData}>
+        <XAxis 
+          dataKey="name" 
+          tick={{ fill: 'var(--foreground)' }}
+          stroke="var(--chart-axis)"
+        />
+        <YAxis 
+          tick={{ fill: 'var(--foreground)' }}
+          stroke="var(--chart-axis)"
+        />
+        <RechartsTooltip 
+          contentStyle={{ 
+            backgroundColor: 'var(--tooltip-bg)',
+            border: '1px solid var(--tooltip-border)',
+            color: 'var(--tooltip-color)',
+            boxShadow: 'var(--tooltip-shadow)',
+            fontWeight: 500
+          }}
+          formatter={(value, name) => [
+            name === 'revenue' 
+              ? new Intl.NumberFormat(locale, { style: 'currency', currency: 'RUB' }).format(Number(value))
+              : `${value} ${t('common.itemCount', { count: value })}`,
+            name === 'revenue' ? t('stats.revenue') : t('stats.sales')
+          ]}
+          labelStyle={{ color: 'var(--tooltip-color)', fontWeight: 600, marginBottom: '4px' }}
+          itemStyle={{ color: 'var(--tooltip-color)' }}
+          wrapperStyle={{ outline: 'none' }}
+        />
+        <Bar dataKey="revenue" fill="var(--primary)" name={t('stats.revenue')} />
+        <Bar dataKey="quantity" fill="var(--secondary)" name={t('stats.sales')} />
+      </BarChart>
+    </ResponsiveContainer>
   );
 }

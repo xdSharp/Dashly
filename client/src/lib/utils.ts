@@ -120,23 +120,42 @@ export function groupSalesByProduct(sales: any[], products: any[]): { labels: st
 
 // Calculate statistics for dashboard
 export function calculateStats(sales: any[]): { 
-  totalSales: number; 
-  totalRevenue: number;
-  averageOrderValue: number;
-  conversionRate: number;
+  revenue: number;
+  totalSales: number;
+  avgOrderValue: number;
+  totalProducts: number;
+  revenueChange: number;
+  salesChange: number;
+  avgOrderChange: number;
+  productsChange: number;
 } {
-  const totalSales = sales.length;
-  const totalRevenue = sales.reduce((sum, sale) => sum + Number(sale.amount), 0);
-  const averageOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
+  // Базовые вычисления
+  const totalSales = sales?.length || 0;
+  const revenue = sales?.reduce((sum, sale) => {
+    const amount = Number(sale.price) * Number(sale.quantity);
+    return sum + (isNaN(amount) ? 0 : amount);
+  }, 0) || 0;
+  const avgOrderValue = totalSales > 0 ? revenue / totalSales : 0;
   
-  // Assuming 5% conversion rate for demo purposes
-  const conversionRate = 28.4; 
+  // Подсчет уникальных продуктов
+  const uniqueProducts = new Set(sales?.map(sale => sale.productId)).size;
+  const totalProducts = uniqueProducts || 0;
+  
+  // Расчет изменений (пока заглушки, в реальном приложении нужно сравнивать с предыдущим периодом)
+  const revenueChange = 0;
+  const salesChange = 0;
+  const avgOrderChange = 0;
+  const productsChange = 0;
   
   return {
+    revenue,
     totalSales,
-    totalRevenue,
-    averageOrderValue,
-    conversionRate
+    avgOrderValue,
+    totalProducts,
+    revenueChange,
+    salesChange,
+    avgOrderChange,
+    productsChange
   };
 }
 
