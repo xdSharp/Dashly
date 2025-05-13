@@ -1,10 +1,4 @@
 var __defProp = Object.defineProperty;
-var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-}) : x)(function(x) {
-  if (typeof require !== "undefined") return require.apply(this, arguments);
-  throw Error('Dynamic require of "' + x + '" is not supported');
-});
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -766,15 +760,20 @@ var storage = new Storage();
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session2 from "express-session";
-import bcrypt from "bcrypt";
 import { z as z2 } from "zod";
+
+// server/password-utils.ts
+import bcrypt from "bcrypt";
 async function hashPassword(password) {
-  const salt = await bcrypt.genSalt(10);
+  const saltRounds = 10;
+  const salt = await bcrypt.genSalt(saltRounds);
   return bcrypt.hash(password, salt);
 }
-async function validatePassword(plainPassword, hashedPassword) {
+async function verifyPassword(plainPassword, hashedPassword) {
   return bcrypt.compare(plainPassword, hashedPassword);
 }
+
+// server/auth.ts
 function setupAuth(app2) {
   const sessionSettings = {
     secret: process.env.SESSION_SECRET || "sales-dashboard-secret-key",
@@ -807,7 +806,7 @@ function setupAuth(app2) {
         if (!user) {
           return done(null, false, { message: "Invalid username or password" });
         }
-        const isValid = await validatePassword(password, user.password);
+        const isValid = await verifyPassword(password, user.password);
         if (!isValid) {
           return done(null, false, { message: "Invalid username or password" });
         }
@@ -893,6 +892,36 @@ function setupAuth(app2) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const { password, ...userWithoutPassword } = req.user;
     res.json(userWithoutPassword);
+  });
+  app2.post("/api/change-password", isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "\u041D\u0435 \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u043E\u0432\u0430\u043D" });
+      }
+      const userId = req.user.id;
+      const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "\u041E\u0431\u0430 \u043F\u0430\u0440\u043E\u043B\u044F \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u044B" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "\u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D" });
+      }
+      const isValid = await verifyPassword(currentPassword, user.password);
+      if (!isValid) {
+        return res.status(400).json({ message: "\u0422\u0435\u043A\u0443\u0449\u0438\u0439 \u043F\u0430\u0440\u043E\u043B\u044C \u043D\u0435\u0432\u0435\u0440\u0435\u043D" });
+      }
+      const hashedPassword = await hashPassword(newPassword);
+      const updatedUser = await storage.updateUser(userId, { password: hashedPassword });
+      if (!updatedUser) {
+        return res.status(404).json({ message: "\u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D" });
+      }
+      const { password, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0440\u0438 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0438 \u043F\u0430\u0440\u043E\u043B\u044F:", error);
+      res.status(500).json({ message: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0438\u0437\u043C\u0435\u043D\u0438\u0442\u044C \u043F\u0430\u0440\u043E\u043B\u044C" });
+    }
   });
   app2.use("/api/admin/*", (req, res, next) => {
     if (!req.isAuthenticated()) {
@@ -1680,22 +1709,26 @@ async function registerRoutes(app2) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const id = parseInt(req.params.id);
+      console.log(`\u041E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0435 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F ${id}, \u0434\u0430\u043D\u043D\u044B\u0435:`, req.body);
       if (id === req.user.id && req.body.role && req.body.role !== req.user.role) {
         return res.status(400).json({ message: "Cannot change your own role" });
       }
       const userData = { ...req.body };
       if (userData.password) {
-        const bcrypt2 = __require("bcrypt");
-        const salt = await bcrypt2.genSalt(10);
-        userData.password = await bcrypt2.hash(userData.password, salt);
+        console.log(`\u0425\u0435\u0448\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435 \u043F\u0430\u0440\u043E\u043B\u044F \u0434\u043B\u044F \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F ${id}`);
+        userData.password = await hashPassword(userData.password);
+        console.log(`\u041F\u0430\u0440\u043E\u043B\u044C \u0443\u0441\u043F\u0435\u0448\u043D\u043E \u0445\u0435\u0448\u0438\u0440\u043E\u0432\u0430\u043D:`, userData.password.substring(0, 20) + "...");
       }
+      console.log("\u041E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u043C \u0434\u0430\u043D\u043D\u044B\u0435 \u0434\u043B\u044F \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F:", { ...userData, password: userData.password ? "[HIDDEN]" : void 0 });
       const updatedUser = await storage.updateUser(id, userData);
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
       const { password, ...userWithoutPassword } = updatedUser;
+      console.log(`\u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C ${id} \u0443\u0441\u043F\u0435\u0448\u043D\u043E \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D`);
       res.json(userWithoutPassword);
     } catch (error) {
+      console.error(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0440\u0438 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0438 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F:`, error);
       res.status(500).json({ message: "Failed to update user" });
     }
   });
@@ -1715,6 +1748,38 @@ async function registerRoutes(app2) {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+  app2.put("/api/admin/users/:id/role", isAuthenticated, async (req, res) => {
+    try {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const id = parseInt(req.params.id);
+      console.log(`\u0418\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0435 \u0440\u043E\u043B\u0438 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F ${id}, \u0434\u0430\u043D\u043D\u044B\u0435:`, req.body);
+      if (id === req.user.id) {
+        return res.status(400).json({ message: "Cannot change your own role" });
+      }
+      const { role, password } = req.body;
+      if (!role) {
+        return res.status(400).json({ message: "Role is required" });
+      }
+      let updatedData = { role };
+      if (password) {
+        console.log(`\u0425\u0435\u0448\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435 \u043F\u0430\u0440\u043E\u043B\u044F \u0434\u043B\u044F \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F ${id} \u043F\u0440\u0438 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0438 \u0440\u043E\u043B\u0438`);
+        updatedData.password = await hashPassword(password);
+        console.log(`\u041F\u0430\u0440\u043E\u043B\u044C \u0443\u0441\u043F\u0435\u0448\u043D\u043E \u0445\u0435\u0448\u0438\u0440\u043E\u0432\u0430\u043D:`, updatedData.password.substring(0, 20) + "...");
+      }
+      const updatedUser = await storage.updateUser(id, updatedData);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      const { password: _password, ...userWithoutPassword } = updatedUser;
+      console.log(`\u0420\u043E\u043B\u044C \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F ${id} \u0443\u0441\u043F\u0435\u0448\u043D\u043E \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0430`);
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0440\u0438 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0438 \u0440\u043E\u043B\u0438 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F:`, error);
+      res.status(500).json({ message: "Failed to update user role" });
     }
   });
   app2.get("/api/customers", isAuthenticated, async (req, res) => {
