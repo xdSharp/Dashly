@@ -1,10 +1,8 @@
-import { useState } from "react";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
 import { useLocale } from "@/hooks/use-locale.tsx";
-import { Menu, Sun, Moon, Globe, Bell, LogOut } from "lucide-react";
-import { Notifications } from "@/components/notifications";
+import { Menu, Sun, Moon, Globe, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,7 +16,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useBusiness } from "@/hooks/use-business";
 import { BusinessSwitcher } from "./business/business-switcher";
-import { NotificationsPopover } from "./notifications-popover";
 import { UserMenu } from "./user-menu";
 import { Logo } from "./logo";
 
@@ -32,7 +29,7 @@ function LanguageToggle() {
         <Button 
           variant="ghost" 
           size="icon"
-          className="text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+          className="text-gray-700 dark:text-gray-300 hover:bg-gray-200/80 dark:hover:bg-gray-800/80"
           aria-label={t("language")}
         >
           <Globe className="h-5 w-5" />
@@ -60,7 +57,7 @@ function ThemeToggle() {
       variant="ghost" 
       size="icon"
       onClick={toggleTheme}
-      className="text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+      className="text-gray-700 dark:text-gray-300 hover:bg-gray-200/80 dark:hover:bg-gray-800/80"
       aria-label={t("theme")}
     >
       {theme === "dark" ? (
@@ -84,7 +81,6 @@ export function Header({ onMenuClick, title, isMenuOpen }: HeaderProps) {
   const { locale, toggleLocale, t } = useLocale();
   const { user, logoutMutation } = useAuth();
   const { currentBusiness } = useBusiness();
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   
   // Проверяем, является ли пользователь администратором
   const isAdmin = user?.role === 'admin';
@@ -100,7 +96,7 @@ export function Header({ onMenuClick, title, isMenuOpen }: HeaderProps) {
   return (
     <header className={cn(
       "sticky top-0 z-40 w-full",
-      "bg-white/5 dark:bg-gray-900/5 backdrop-blur-lg shadow-sm"
+      "bg-white/90 dark:bg-gray-900/80 backdrop-blur-lg shadow-sm"
     )}>
       <div className="px-2 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3 md:gap-2 md:mr-4">
@@ -110,7 +106,7 @@ export function Header({ onMenuClick, title, isMenuOpen }: HeaderProps) {
             onClick={onMenuClick}
             className={cn(
               "md:hidden",
-              "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+              "text-gray-700 dark:text-gray-300 hover:bg-gray-200/80 dark:hover:bg-gray-800/80"
             )}
             aria-label={isMenuOpen ? "Закрыть меню" : "Открыть меню"}
           >
@@ -155,20 +151,6 @@ export function Header({ onMenuClick, title, isMenuOpen }: HeaderProps) {
               <BusinessSwitcher />
             </div>
           )}
-
-          <NotificationsPopover>
-            <Button 
-              variant="ghost" 
-              size="icon"
-              className={cn(
-                "text-gray-600 dark:text-gray-300",
-                "hover:bg-gray-100 dark:hover:bg-gray-800"
-              )}
-              aria-label={t("notifications.title")}
-            >
-              <Bell className="h-5 w-5" />
-            </Button>
-          </NotificationsPopover>
 
           <div className="hidden md:flex">
             <LanguageToggle />

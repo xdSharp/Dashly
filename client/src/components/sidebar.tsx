@@ -47,8 +47,10 @@ function NavigationItem({
       href={href}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-        active && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
+        "flex items-center gap-3 rounded-lg px-3 py-2 transition-all",
+        "text-gray-700 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+        "hover:bg-gray-200/80 dark:hover:bg-gray-800/80",
+        active && "bg-gray-200/90 text-gray-900 font-medium dark:bg-gray-800 dark:text-gray-50"
       )}
     >
       <Icon className="h-4 w-4" />
@@ -123,7 +125,10 @@ export function Sidebar({ className, isMobile = false, onClose }: SidebarProps) 
 
   return (
     <aside className={cn(
-      "flex flex-col h-full backdrop-blur-md bg-white/5 dark:bg-gray-800/5 border-r border-gray-200 dark:border-white/10 transition-all duration-300 ease-in-out",
+      "flex flex-col h-full",
+      "backdrop-blur-lg bg-white/90 dark:bg-gray-800/90",
+      "border-r border-gray-200 dark:border-white/10",
+      "transition-all duration-300 ease-in-out",
       className
     )}>
       {/* Logo */}
@@ -135,7 +140,7 @@ export function Sidebar({ className, isMobile = false, onClose }: SidebarProps) 
       {user && !isAdmin && (
         <div className="px-4 py-2 border-b border-gray-200 dark:border-white/10">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium text-black dark:text-gray-300">
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-300">
               {t('current_business')}
             </p>
             <BusinessSwitcher />
