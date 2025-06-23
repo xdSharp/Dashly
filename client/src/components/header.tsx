@@ -152,13 +152,9 @@ export function Header({ onMenuClick, title, isMenuOpen }: HeaderProps) {
             </div>
           )}
 
-          <div className="hidden md:flex">
-            <LanguageToggle />
-          </div>
-
-          <div className="hidden md:flex">
-            <ThemeToggle />
-          </div>
+          {/* Кнопки переключения языка и темы - показываем на всех устройствах */}
+          <LanguageToggle />
+          <ThemeToggle />
 
           <UserMenu />
         </div>
