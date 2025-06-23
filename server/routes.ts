@@ -25,6 +25,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Product routes
   app.get("/api/products", isAuthenticated, async (req, res) => {
     try {
+      // Проверяем наличие req.user
+      if (!req.user || !req.user.id) {
+        console.error("Products: req.user или req.user.id отсутствует");
+        return res.status(401).json({ message: "Unauthorized - user data missing" });
+      }
+      
       const userId = req.user.id;
       const businessId = req.query.businessId ? parseInt(req.query.businessId as string) : undefined;
       const products = await storage.getAllProducts(userId, businessId);
@@ -135,10 +141,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Если не указан businessId, используем дефолтный бизнес
       let businessId = req.body.businessId;
       
+      console.log("Создание категории: начало", { 
+        userId, 
+        requestBusinessId: businessId,
+        body: req.body
+      });
+      
       if (!businessId) {
+        console.log("Создание категории: businessId не указан, ищем дефолтный бизнес");
         const defaultBusiness = await storage.getDefaultBusiness(userId);
+        console.log("Создание категории: результат поиска дефолтного бизнеса", defaultBusiness);
+        
         if (defaultBusiness) {
           businessId = defaultBusiness.id;
+          console.log(`Создание категории: используем дефолтный бизнес с id=${businessId}`);
+        } else {
+          console.log("Создание категории: дефолтный бизнес не найден");
         }
       }
       
@@ -148,12 +166,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         businessId
       };
       
+      console.log("Создание категории: подготовленные данные", categoryData);
+      
       const category = await storage.createCategory(categoryData);
+      console.log("Создание категории: успешно создана категория", category);
+      
       res.status(201).json(category);
     } catch (error) {
+      console.error("Создание категории: ошибка", error);
+      
       if (error instanceof ZodError) {
+        console.log("Создание категории: ошибка валидации Zod", error.errors);
         return res.status(400).json({ message: error.errors[0].message });
       }
+      
+      // Проверяем, есть ли в ошибке информация о нарушении ограничения внешнего ключа
+      const errorMessage = error.message || String(error);
+      if (errorMessage.includes('foreign key constraint') || errorMessage.includes('violates foreign key')) {
+        console.log("Создание категории: ошибка внешнего ключа", errorMessage);
+        return res.status(400).json({ message: "Указан несуществующий businessId" });
+      }
+      
+      // Проверяем на ошибку уникальности имени категории
+      if (errorMessage.includes('unique constraint') && errorMessage.includes('uk_user_category_name')) {
+        console.log("Создание категории: ошибка уникальности имени", errorMessage);
+        return res.status(400).json({ message: "Категория с таким именем уже существует" });
+      }
+      
       res.status(500).json({ message: "Failed to create category" });
     }
   });
@@ -181,6 +220,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(updatedCategory);
     } catch (error) {
+      console.error("Обновление категории: ошибка", error);
+      
+      // Проверяем на ошибку уникальности имени категории
+      const errorMessage = error.message || String(error);
+      if (errorMessage.includes('unique constraint') && errorMessage.includes('uk_user_category_name')) {
+        console.log("Обновление категории: ошибка уникальности имени", errorMessage);
+        return res.status(400).json({ message: "Категория с таким именем уже существует" });
+      }
+      
       res.status(500).json({ message: "Failed to update category" });
     }
   });
@@ -215,6 +263,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sales routes
   app.get("/api/sales", isAuthenticated, async (req, res) => {
     try {
+      // Проверяем наличие req.user
+      if (!req.user || !req.user.id) {
+        console.error("Sales: req.user или req.user.id отсутствует");
+        return res.status(401).json({ message: "Unauthorized - user data missing" });
+      }
+      
       const userId = req.user.id;
       const businessId = req.query.businessId ? parseInt(req.query.businessId as string) : undefined;
       const sales = await storage.getAllSales(userId, businessId);
@@ -804,6 +858,12 @@ app.post("/api/products", isAuthenticated, async (req, res) => {
   // Business routes
   app.get("/api/businesses", isAuthenticated, async (req, res) => {
     try {
+      // Проверяем наличие req.user
+      if (!req.user || !req.user.id) {
+        console.error("Businesses: req.user или req.user.id отсутствует");
+        return res.status(401).json({ message: "Unauthorized - user data missing" });
+      }
+      
       const userId = req.user.id;
       const businesses = await storage.getAllBusinesses(userId);
       res.json(businesses);
@@ -918,6 +978,12 @@ app.post("/api/products", isAuthenticated, async (req, res) => {
   // Dashboard routes
   app.get("/api/dashboard/summary", isAuthenticated, async (req, res) => {
     try {
+      // Проверяем наличие req.user
+      if (!req.user || !req.user.id) {
+        console.error("Dashboard summary: req.user или req.user.id отсутствует");
+        return res.status(401).json({ message: "Unauthorized - user data missing" });
+      }
+      
       // Проверяем, должны ли мы использовать указанный userId (только для админов)
       let userId = req.user.id;
       const requestedUserId = req.query.userId ? parseInt(req.query.userId as string) : undefined;
@@ -983,6 +1049,12 @@ app.post("/api/products", isAuthenticated, async (req, res) => {
   // Добавим отдельный маршрут для получения только статистики товаров
   app.get("/api/dashboard/products-stats", isAuthenticated, async (req, res) => {
     try {
+      // Проверяем наличие req.user
+      if (!req.user || !req.user.id) {
+        console.error("Products stats: req.user или req.user.id отсутствует");
+        return res.status(401).json({ message: "Unauthorized - user data missing" });
+      }
+      
       const userId = req.user.id;
       const businessId = req.query.businessId ? parseInt(req.query.businessId as string) : undefined;
       
@@ -1086,6 +1158,52 @@ app.post("/api/products", isAuthenticated, async (req, res) => {
     } catch (error) {
       console.error("Error fetching user sales:", error);
       res.status(500).json({ message: "Failed to fetch user sales" });
+    }
+  });
+
+  // Эндпоинт для отладки - получение информации о пользователе и его бизнесах
+  app.get("/api/debug/user-info", isAuthenticated, async (req, res) => {
+    try {
+      // После middleware isAuthenticated, req.user гарантированно существует
+      const userId = req.user!.id;
+      console.log("Debug: запрос информации о пользователе", { userId });
+      
+      // Получаем информацию о пользователе
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+      
+      // Получаем бизнесы пользователя
+      const businesses = await storage.getAllBusinesses(userId);
+      console.log("Debug: найдены бизнесы пользователя", businesses);
+      
+      // Получаем дефолтный бизнес
+      const defaultBusiness = await storage.getDefaultBusiness(userId);
+      console.log("Debug: дефолтный бизнес", defaultBusiness);
+      
+      // Получаем категории пользователя
+      const categories = await storage.getAllCategories(userId);
+      console.log("Debug: категории пользователя", categories);
+      
+      // Отправляем ответ с отладочной информацией
+      res.json({
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          name: user.name,
+          role: user.role
+        },
+        businesses,
+        defaultBusiness,
+        categories,
+        hasDefaultBusiness: !!defaultBusiness,
+        businessesCount: businesses.length
+      });
+    } catch (error: unknown) {
+      console.error("Debug: ошибка при получении информации о пользователе", error);
+      res.status(500).json({ message: "Ошибка при получении информации о пользователе" });
     }
   });
 
